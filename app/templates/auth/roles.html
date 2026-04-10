@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Your role · Mitra{% endblock %}
+{% block body %}
+<div class="min-h-full flex items-center justify-center px-4">
+  <div class="w-full max-w-2xl">
+    <h1 class="text-center text-3xl font-bold text-slate-900">What best describes you?</h1>
+    <p class="text-center text-slate-500 mt-2">Pick one or more. We use this to tailor suggested questions and retrieval filters.</p>
+
+    <form method="post" action="/roles" class="mt-8">
+      {% if error %}
+      <div class="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-100 mb-4">{{ error }}</div>
+      {% endif %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-data="{ roles: [] }">
+        {% for role, icon, desc in [
+          ('sales',         'trending-up',   'Orders, customers, revenue'),
+          ('purchase',      'shopping-cart', 'Vendors, POs, spend'),
+          ('manufacturing', 'factory',       'WIP, routing, BOMs'),
+          ('other',         'user',          'Finance, IT, management or something else')
+        ] %}
+        <label :class="roles.includes('{{ role }}') ? 'ring-2 ring-brand-500 bg-brand-50' : 'bg-white'"
+               class="relative cursor-pointer rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition block">
+          <input type="checkbox" name="roles" value="{{ role }}" class="sr-only"
+                 @change="roles.includes('{{ role }}') ? roles = roles.filter(r => r !== '{{ role }}') : roles.push('{{ role }}')" />
+          <div class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center">
+              <i data-lucide="{{ icon }}" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <div class="font-semibold capitalize text-slate-900">{{ role }}</div>
+              <div class="text-xs text-slate-500">{{ desc }}</div>
+            </div>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+      <button type="submit"
+              class="mt-8 w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3 rounded-lg transition shadow-lg shadow-brand-600/30">
+        Continue
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

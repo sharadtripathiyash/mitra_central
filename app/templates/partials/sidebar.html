@@ -1,0 +1,55 @@
+<aside class="w-64 shrink-0 bg-white border-r border-slate-200 flex flex-col">
+
+  <!-- Logo -->
+  <div class="h-14 flex items-center px-5 border-b border-slate-200">
+    <span class="text-lg font-semibold text-brand-900">Mitra</span>
+  </div>
+
+  <!-- Nav -->
+  <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+    <div class="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">AI Agents</div>
+    {% for a in agents %}
+    <a href="{{ a.route_prefix }}"
+       class="flex items-center gap-3 px-3 py-2.5 rounded transition text-sm
+              {% if a.key == active %}
+                border-l-4 border-brand-800 bg-slate-50 font-semibold text-slate-800
+              {% else %}
+                border-l-4 border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900
+              {% endif %}">
+      <span>{{ a.name }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <!-- Bottom: settings + user -->
+  <div class="border-t border-slate-200 px-4 py-4 space-y-3 text-sm">
+
+    <a href="/settings"
+       class="flex items-center gap-2 text-slate-600 hover:text-brand-800 transition cursor-pointer">
+      <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
+      <span>Settings</span>
+    </a>
+
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+          <i data-lucide="user" class="w-4 h-4 text-slate-500"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-medium text-slate-800 truncate">{{ user.username }}</div>
+          <div class="text-xs text-slate-500 truncate capitalize">
+            {% for r in user.roles %}{{ r }}{% if not loop.last %}, {% endif %}{% endfor %}
+          </div>
+        </div>
+      </div>
+      <form method="post" action="/logout">
+        <button type="submit"
+                class="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100 transition"
+                title="Sign out">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+        </button>
+      </form>
+    </div>
+
+  </div>
+</aside>

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ agent.name }} · Mitra Central{% endblock %}
+{% block body %}
+<div class="h-full flex">
+  {% include "partials/sidebar.html" %}
+  <div class="flex-1 flex flex-col" x-data="wsChat('{{ agent.route_prefix }}/ws', 'visual')">
+    {% include "partials/chat_shell.html" %}
+  </div>
+</div>
+{% include "partials/apex_widget.html" %}
+{% endblock %}
