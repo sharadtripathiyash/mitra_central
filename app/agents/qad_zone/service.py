@@ -228,8 +228,8 @@ SOURCE CODE:
 Return ONLY valid JSON with this exact structure — populate every field you can find evidence for in the code:
 
 {{
-  "system_name": "Short code/abbreviation (e.g. MRN, DOA) from file names or comments",
-  "system_full_name": "Full descriptive system name from comments or screen titles",
+  "system_name": "Business-meaningful short code (3-5 letters) derived from the system's FUNCTION — strip any company-specific prefix like 'XX' or 'YY'. Example: programs named 'xxmr*.p' handling requisitions → 'MR'. Programs named 'xxdoa*.p' for document approval → 'DOA'. Derive from what the system DOES, never from the raw file prefix alone.",
+  "system_full_name": "Full descriptive business name in plain English from comments, screen titles, or menu labels (e.g. 'Material Requisition Maintenance', 'Document Approval Workflow'). Must clearly state what the system is for.",
   "platform": "QAD ERP | Progress 4GL / OpenEdge",
   "module": "Business module (e.g. Inventory Control, Purchasing, Finance)",
   "version": "Version string from comments if present",
@@ -319,10 +319,16 @@ Return ONLY valid JSON with this exact structure — populate every field you ca
   ],
   "flowchart_lanes": ["lane1_id:LANE LABEL:dark_blue", "lane2_id:LANE LABEL:light_blue"],
   "flowchart_nodes": [
-    {{"id": "node_id", "type": "oval/box/diamond", "lane": "lane_id", "label": "display label", "color": "dark_blue/light_blue/green/yellow/red"}}
+    {{
+      "id": "node_id",
+      "type": "oval/box/diamond",
+      "lane": "lane_id",
+      "label": "Business action phrase describing WHAT IS HAPPENING at this step — e.g. 'Enter Requisition Header', 'Validate Authorization Group', 'Post Material Transaction'. NEVER use a raw program filename as the label. If the program name is useful context, add it in parentheses: 'Enter Requisition Details (xxmr.p)'.",
+      "color": "dark_blue/light_blue/green/yellow/red"
+    }}
   ],
   "flowchart_arrows": [
-    {{"from": "node_id", "to": "node_id", "label": "YES/NO or empty", "color": "blue/green/red"}}
+    {{"from": "node_id", "to": "node_id", "label": "YES/NO or brief condition (e.g. 'Approved', 'Stock Available') or empty", "color": "blue/green/red"}}
   ]
 }}
 
@@ -362,7 +368,7 @@ CRITICAL INSTRUCTIONS:
 1. Every paragraph field: write 4-6 full, detailed sentences — never a single short sentence.
 2. Every program purpose: explain what the program does, what tables it reads/writes, what the user sees, and its role in the overall system.
 3. Every logic step: write as a complete action sentence (e.g. "The program validates that the site code entered exists in the site master table and displays an error if not found.").
-4. FLOWCHART: ALWAYS set SHOW to true and generate a complete flowchart by synthesizing facts.programs, facts.workflow_phases, and facts.call_flow. Create one LANE per business role or phase (e.g. User, Authorization, Processing, Database). Create one NODE per program or decision point. Create ARROWS following the call flow. Use dark_blue for main programs, yellow for decision diamonds, green for end/success nodes, red for error/denial nodes.
+4. FLOWCHART: ALWAYS set SHOW to true and generate a complete flowchart by synthesizing facts.programs, facts.workflow_phases, and facts.call_flow. Create one LANE per business role or phase (e.g. User, Authorization, Processing, Database). Create one NODE per program or decision point. Create ARROWS following the call flow. CRITICAL LABEL RULE: every node LABEL must be a plain-English business action phrase describing WHAT IS HAPPENING — e.g. "Enter Requisition Header", "Validate Authorization Group", "Post Transaction to Inventory", "Display Error — Site Not Found". NEVER use a raw program filename as the only label. If you want to reference the program add it in parentheses after the phrase: "Enter Requisition Details (xxmr.p)". A business user who has never seen the source code must fully understand every label. Use dark_blue for main entry program nodes, yellow for decision diamonds, green for save/post/success nodes, red for error/denied nodes.
 5. QUICK_REFERENCE: set SHOW to true for any table where facts contain matching data (transaction_types → TRANSACTION_TYPE_TABLE, auth_groups → AUTH_GROUP_TABLE, include_files → INCLUDE_FILES_TABLE).
 6. APPROVAL_WORKFLOW: set SHOW to true if facts.approval_workflow.exists is true.
 7. All boolean SHOW values must be true or false (JSON booleans, not strings).
@@ -371,7 +377,7 @@ Return ONLY valid JSON:
 
 {{
   "TITLE_PAGE": {{
-    "SYSTEM_NAME": "{facts.get('system_name', '')}",
+    "SYSTEM_NAME": "Business short code from facts.system_name — must NOT start with 'XX' or 'YY'. If facts.system_name starts with XX/YY strip those letters. If it still looks like a raw filename code, derive a 2-5 letter acronym from the system_full_name instead (e.g. 'Requisition Maintenance' → 'RM', 'Document Approval' → 'DOA'). Current value from facts: {facts.get('system_name', '')}",
     "SYSTEM_FULL_NAME": "{facts.get('system_full_name', '')}",
     "PLATFORM": "{facts.get('platform', 'QAD ERP | Progress 4GL / OpenEdge')}",
     "MODULE": "{facts.get('module', '')}",
@@ -555,15 +561,29 @@ Return ONLY valid JSON:
       }}
     ],
     "NODES": [
-      "Generate one node per major program or decision point from facts.programs and facts.workflow_phases.",
-      "Use TYPE oval for START/END, box for programs, diamond for decisions.",
-      "Assign each node to the most appropriate LANE based on its function.",
-      "Use dark_blue for main programs, light_blue for sub-programs, yellow for decisions, green for DB/save operations, red for error/denied nodes.",
-      "Example node: {{\\\"ID\\\": \\\"start\\\", \\\"TYPE\\\": \\\"oval\\\", \\\"LANE\\\": \\\"user\\\", \\\"LABEL\\\": \\\"START\\\", \\\"COLOR\\\": \\\"dark_blue\\\"}}"
+      {{
+        "ID": "start",
+        "TYPE": "oval",
+        "LANE": "user",
+        "LABEL": "START — User Initiates Process",
+        "COLOR": "dark_blue"
+      }},
+      "INSTRUCTIONS (replace these with real nodes — one per major step or decision):",
+      "• TYPE: oval = START/END, box = process step, diamond = decision/branch",
+      "• LANE: assign to the lane matching the business role (user / auth / processing / database)",
+      "• LABEL RULE — CRITICAL: Label must be a plain-English business action phrase describing WHAT IS HAPPENING at this step. Examples: 'Enter Requisition Header', 'Validate Authorization Group', 'Check Stock Availability', 'Post Material Transaction to Inventory', 'Display Error — Insufficient Stock'. NEVER use a raw program filename alone. If program context helps, add it in parentheses: 'Enter Requisition Details (xxmr.p)'. A business user who has never seen the code must understand every label.",
+      "• COLOR: dark_blue for main entry programs, light_blue for sub-programs, yellow for decision diamonds, green for success/save/post operations, red for error/denied outcomes"
     ],
     "ARROWS": [
-      "Generate arrows following facts.call_flow and facts.workflow_phases.",
-      "Example arrow: {{\\\"FROM\\\": \\\"node1\\\", \\\"TO\\\": \\\"node2\\\", \\\"LABEL\\\": \\\"YES\\\", \\\"COLOR\\\": \\\"green\\\"}}"
+      {{
+        "FROM": "node1",
+        "TO": "node2",
+        "LABEL": "YES or brief condition e.g. 'Approved' / 'Stock OK' / empty string",
+        "COLOR": "green"
+      }},
+      "INSTRUCTIONS (replace with real arrows following facts.call_flow and facts.workflow_phases):",
+      "• LABEL: use YES/NO for decisions, a brief condition phrase ('Approved', 'Invalid Site'), or leave empty for simple sequential flow.",
+      "• COLOR: green for success/approved paths, red for error/rejected paths, blue for normal flow"
     ]
   }}
 }}

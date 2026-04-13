@@ -956,7 +956,11 @@ def generate_document(title: str, sections: list[dict], *, subtitle: str = "Mitr
 
     # Resolve title-page data
     TP = D.get("TITLE_PAGE") or {}
-    sys_name = TP.get("SYSTEM_NAME") or title
+    _raw_name = (TP.get("SYSTEM_NAME") or title).strip()
+    # Safety: strip company-specific XX / YY prefix that slips through from file names
+    import re as _re
+    _clean_name = _re.sub(r"^[Xx]{2}|^[Yy]{2}", "", _raw_name).strip() or _raw_name
+    sys_name = _clean_name
     sys_full = TP.get("SYSTEM_FULL_NAME") or title
     doc_date = (
         datetime.now().strftime("%d %B %Y")
