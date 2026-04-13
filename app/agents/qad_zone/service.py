@@ -214,97 +214,230 @@ async def _handle_documentation(ws: WebSocket, question: str, session_id: str,
     await send_status(ws, "Analysing code and generating document structure...")
 
     system = """You are a QAD ERP technical writer producing corporate-quality documentation.
-Always return valid JSON only — no markdown fences, no preamble, no extra text."""
+Always return valid JSON only — no markdown fences, no preamble, no extra text.
+CRITICAL: Only include fields you can populate with real data from the code.
+Omit any field, array, or sub-object entirely if the code does not provide enough information to fill it.
+Never use placeholder text like [NAME], [VALUE], or example/template values — if you do not know it, leave the key out."""
 
-    prompt = f"""Analyse the following QAD custom program code and produce structured documentation data.
+    prompt = f"""Analyse the following QAD Progress 4GL custom program code and produce structured documentation data.
 
 USER REQUEST: {question}
 
 CODE:
 {code}
 
-Return ONLY valid JSON with this exact structure. Populate every field from the actual code.
-If a field cannot be determined from the code, use a descriptive placeholder (never leave empty strings for required narrative fields).
+Return ONLY valid JSON matching the structure below. Rules:
+- Omit any key whose value you cannot determine from the actual code.
+- For arrays: omit the key entirely rather than returning an empty array [].
+- For strings: omit the key entirely rather than returning "", "N/A", or placeholder text.
+- For objects with a "SHOW" key: set SHOW to false and omit data arrays if not applicable.
+- Populate every field you DO include with real, specific data from the code.
 
 {{
-  "module_name": "Short module name/code (e.g. DOA, E-INVOICE)",
-  "module_title": "Full descriptive title of the module",
-  "module_code": "Module code identifier",
-  "qad_version": "QAD version this runs on if determinable from code, else [QAD EE VERSION]",
-  "company_name": "[COMPANY NAME]",
-  "primary_purpose": "One-sentence purpose derived from code analysis",
-  "business_domain": "e.g. Financial Controls / Procurement / Compliance / Operations",
-  "owning_department": "[DEPARTMENT]",
-  "dev_status": "Production",
-  "criticality": "HIGH / MEDIUM / LOW — with brief justification based on the code",
-  "total_files": "Count of .p, .i, .df, .xml files found",
-  "key_capabilities": [
-    "Capability 1 — derived from code, in plain business language",
-    "Capability 2",
-    "Capability 3",
-    "Capability 4"
-  ],
-  "scope_in": "What processes and features this module covers, based on code analysis.",
-  "scope_out": "Adjacent processes handled by standard QAD or other customisations.",
-  "background": "2-3 paragraphs: why this module was built, the business problem, regulatory or operational driver, and how it fits the ERP landscape.",
-  "process_flow": "Numbered steps describing the business process from triggering event to final outcome. Use business language not code language.",
-  "user_roles": [
-    {{"role": "Role name e.g. Requestor", "responsibilities": "What they do in this module", "domain": "[DOMAIN]", "notes": "Restrictions or conditions"}}
-  ],
-  "architecture": "1-2 paragraphs: how this customisation is structured — standalone 4GL app, layered extension, persistent procedure library, or batch process. How deployed.",
-  "integrations": [
-    {{"system": "QAD module or external system", "code": "[CODE]", "type": "Shared Table / Trigger / API / File", "data": "Tables or fields", "direction": "Read / Write / Both"}}
-  ],
-  "custom_tables": [
-    {{"name": "Table name", "df_file": "source.df", "purpose": "What this table stores"}}
-  ],
-  "key_fields": [
-    {{"field": "TABLE.FIELD", "label": "Screen label", "type": "CHAR/INT/DEC/DATE", "key": "PK/FK/—", "desc": "Business meaning"}}
-  ],
-  "standard_tables": [
-    {{"table": "QAD table e.g. po_hdr", "owner": "QAD module", "access": "Read / Write / Both", "purpose": "Why accessed and which fields"}}
-  ],
-  "source_files": [
-    {{"name": "filename.p", "type": ".p", "lines": 450, "purpose": "One-line description of what this file does"}}
-  ],
-  "key_programs": [
+  "TITLE_PAGE": {{
+    "SYSTEM_NAME": "Short code / abbreviation of the system (e.g. DOA, EINV)",
+    "SYSTEM_FULL_NAME": "Full descriptive name of the system",
+    "PLATFORM": "QAD ERP | Progress 4GL / OpenEdge",
+    "MODULE": "e.g. Inventory Control / Purchasing / Finance",
+    "VERSION": "e.g. 9.0 Custom Build — if determinable from code comments",
+    "ORIGINAL_AUTHOR": "Name (Date) — from code comments if present",
+    "LAST_MODIFIED_BY": "Name (ECO: CODE) — from code comments if present",
+    "TOTAL_PROGRAMS": "Count of .p and .i files found",
+    "DOCUMENT_DATE": "AUTO"
+  }},
+  "EXECUTIVE_SUMMARY": {{
+    "PARA_1": "One paragraph describing what this system does, what business problem it solves, and what transaction types it handles.",
+    "PARA_2": "One paragraph describing how this differs from standard QAD functionality and why a custom solution was needed.",
+    "KEY_CAPABILITIES": [
+      "Capability derived from code — business language"
+    ],
+    "COMPARISON_TABLE": {{
+      "headers": ["Feature", "Standard QAD", "This Custom System"],
+      "rows": [
+        ["Feature name from code", "Standard QAD behavior", "Custom system behavior"]
+      ]
+    }}
+  }},
+  "ARCHITECTURE": {{
+    "INTRO_PARA": "Brief paragraph describing the overall architecture and entry point.",
+    "PROGRAM_HIERARCHY_TABLE": {{
+      "headers": ["Program", "Type", "Role", "Called By", "Calls"],
+      "rows": [
+        ["program.p", "Maintenance / Report / Utility", "Description of role", "Caller or Menu", "Called programs"]
+      ]
+    }},
+    "SHARED_VARIABLES_TABLE": {{
+      "headers": ["Shared Variable", "Data Type", "Purpose"],
+      "rows": [
+        ["variable_name", "like xx_field or as integer", "What this variable carries"]
+      ]
+    }}
+  }},
+  "DATABASE_TABLES": [
     {{
-      "name": "program_filename.p",
-      "type": "Maintenance / Inquiry / Report / Batch / Trigger / Persistent Procedure",
-      "called_by": "Caller programs or Direct menu launch",
-      "calls": "Programs or internal procedures this invokes",
-      "tables_write": "Tables where this program writes data",
-      "tables_read": "Tables read by this program",
-      "includes": ".i files included",
-      "logic_flow": "Step-by-step walkthrough of the program's main logic. Reference key variable names and block labels.",
-      "code_snippet": "5-15 lines of the most significant logic block from the actual code",
-      "error_handling": "ON ERROR blocks, validation failures, user-facing error messages. Note any FOR EACH loops on large tables, NO-LOCK vs SHARE-LOCK strategies."
+      "TABLE_NAME": "xx_mstr",
+      "TABLE_SUBTITLE": "Header / Master / Detail / Control / History",
+      "TABLE_DESCRIPTION": "One sentence describing what this table stores.",
+      "TABLE_FIELDS": {{
+        "headers": ["Field", "Type / Format", "Description"],
+        "rows": [
+          ["field_name", "Character / Integer / Decimal / Logical / Date", "Field description"]
+        ]
+      }},
+      "TABLE_UNIQUE_KEY": "domain + field1 + field2",
+      "TABLE_NOTE": "Warning or important note if applicable — omit if none",
+      "TABLE_INFO": "Informational note if applicable — omit if none"
     }}
   ],
-  "business_rules": [
-    {{"name": "Rule name", "description": "Plain-English rule — e.g. A record cannot be approved by the same user who created it.", "enforced_in": "Program where enforced", "consequence": "Error shown / Blocked / Audit entry"}}
+  "PROGRAM_ANALYSIS": [
+    {{
+      "PROG_NAME": "program.p",
+      "PROG_VERSION_INFO": "Created by: Name  Date: DD/MM/YY  Last Modified: Name (ECO) — from code comments",
+      "PROG_PURPOSE": "Paragraph describing what this program does.",
+      "PROG_CALLED_BY": "program_name.p or Menu",
+      "PROG_CALLS": ["sub_program1.p", "sub_program2.p"],
+      "PROG_INCLUDE_FILES": ["include1.i", "include2.i"],
+      "PROG_SCREEN_LAYOUT": {{
+        "FRAME_NAME": "Frame A / Frame B / Frame C",
+        "headers": ["Field", "Label", "Editable When"],
+        "rows": [
+          ["field_name", "Screen Label", "Always / Create mode / condition"]
+        ]
+      }},
+      "PROG_LOGIC_STEPS": [
+        "Step 1: description",
+        "Step 2: description"
+      ],
+      "PROG_VALIDATIONS": [
+        "Validation rule derived from code"
+      ],
+      "PROG_TRIGGERS": [
+        "ON WRITE OF table_name: description"
+      ],
+      "PROG_SPECIAL_TABLES": {{
+        "SHOW": false,
+        "headers": ["Mode", "Condition", "Formula"],
+        "rows": []
+      }},
+      "PROG_EXTRA_SECTION": {{
+        "SHOW": false,
+        "TITLE": "Additional Section Title",
+        "CONTENT_TYPE": "table",
+        "PARA": "",
+        "BULLETS": [],
+        "TABLE": {{ "headers": [], "rows": [] }}
+      }}
+    }}
   ],
-  "config_params": [
-    {{"param": "Parameter name", "stored_in": "TABLE.FIELD or Config Program", "default": "Default value", "desc": "What changes when this is set"}}
+  "WORKFLOW": {{
+    "INTRO_PARA": "Brief description of the business workflow lifecycle.",
+    "PHASES_TABLE": {{
+      "headers": ["Phase", "Action", "Program", "Key Validations", "Table Updates"],
+      "rows": [
+        ["Phase Name", "Action description", "program.p", "Validation checks", "Tables written"]
+      ]
+    }},
+    "INTERNAL_CALL_FLOW": [
+      "User navigates to root_program.p",
+      "  root_program.p: enter key fields"
+    ],
+    "APPROVAL_WORKFLOW": {{
+      "SHOW": false,
+      "STEPS": [],
+      "NOTE": ""
+    }},
+    "DELETE_RULES_TABLE": {{
+      "headers": ["What", "When Allowed", "When Blocked"],
+      "rows": [
+        ["Table / Record", "Condition when delete is permitted", "Condition when blocked"]
+      ]
+    }}
+  }},
+  "SETUP_INSTRUCTIONS": {{
+    "PREREQUISITES": [
+      "Prerequisite from code analysis"
+    ],
+    "STEPS": [
+      {{
+        "STEP_NUMBER": "1",
+        "STEP_TITLE": "Deploy Programs",
+        "STEP_DESCRIPTION": "Brief description of this step.",
+        "STEP_ITEMS": ["Step item derived from code"],
+        "STEP_CODE": ["/* code line */"]
+      }}
+    ],
+    "MENU_TABLE": {{
+      "SHOW": false,
+      "headers": ["Menu Option", "Program", "Description"],
+      "rows": []
+    }},
+    "TEST_STEPS": [
+      "Test step derived from code logic"
+    ]
+  }},
+  "QAD_NATIVE_COMPARISON": {{
+    "SHOW": false,
+    "NATIVE_DESCRIPTION_PARA": "",
+    "NATIVE_MODULES": [],
+    "NATIVE_SETUP_STEPS": [],
+    "DEPLOYMENT_DECISION_TABLE": {{ "headers": [], "rows": [] }}
+  }},
+  "ERROR_MESSAGES": {{
+    "TABLE": {{
+      "headers": ["Error Message / Code", "Triggering Condition", "Resolution"],
+      "rows": [
+        ["Error message text", "What causes this error", "How to fix it"]
+      ]
+    }}
+  }},
+  "CUSTOMIZATION_HISTORY": [
+    {{
+      "ECO_ID": "ECO001",
+      "ECO_TITLE": "Brief title of this change",
+      "ECO_AUTHOR": "Developer Name",
+      "ECO_DATE": "Month Year",
+      "ECO_CHANGES": [
+        "Change description from code comments"
+      ]
+    }}
   ],
-  "audit_trail": "What is logged, which table stores it, when it is written, and what data is captured. If no audit trail exists, state this clearly.",
-  "security_objects": [
-    {{"object": "program.p or MENU ITEM", "type": "Program / Menu / Report", "role": "Required role or token", "notes": "Conditional access or restrictions"}}
-  ],
-  "test_cases": [
-    {{"id": "TC-001", "scenario": "Test scenario description", "steps": "Step-by-step actions", "expected": "Expected outcome", "status": "Pending"}}
-  ],
-  "known_issues": [
-    {{"id": "ISS-001", "severity": "High / Med / Low", "description": "Limitation or defect identified during code review", "workaround": "Workaround if any", "status": "Open"}}
-  ],
-  "glossary_terms": [
-    {{"term": "Module-specific term", "definition": "Definition extracted from variable names, screen labels, or code comments"}}
-  ],
-  "files_scanned": "Count and list of files analysed",
-  "lines_analysed": "Total estimated line count across all source files"
+  "QUICK_REFERENCE": {{
+    "TRANSACTION_TYPE_TABLE": {{
+      "SHOW": false,
+      "headers": ["Trans Type", "Code Value", "Transaction String", "Program Used", "Effect on Inventory"],
+      "rows": []
+    }},
+    "AUTH_GROUP_TABLE": {{
+      "SHOW": false,
+      "headers": ["Action", "Group Field", "Where Stored"],
+      "rows": []
+    }},
+    "INCLUDE_FILES_TABLE": {{
+      "SHOW": false,
+      "headers": ["Include File", "Purpose"],
+      "rows": []
+    }},
+    "LOT_SERIAL_TABLE": {{
+      "SHOW": false,
+      "headers": ["Code", "Meaning", "Used In"],
+      "rows": []
+    }},
+    "CUSTOM_TABLE_1": {{
+      "SHOW": false,
+      "TITLE": "",
+      "headers": [],
+      "rows": []
+    }}
+  }},
+  "FLOWCHART": {{
+    "SHOW": false,
+    "LANES": [],
+    "NODES": [],
+    "ARROWS": []
+  }}
 }}
 
-Populate every array field with real data extracted from the code. For key_programs, include one entry per significant program (entry points, main logic files). Do not include empty arrays.
+Fill every included field with specific data from the code. Omit keys you cannot fill with real data.
 """
 
     raw = await openai_chat(system, prompt, max_tokens=4096)
@@ -325,18 +458,19 @@ Populate every array field with real data extracted from the code. For key_progr
         append_turn(session_id, AGENT_KEY, {"q": question, "a": summary, "mode": "documentation", "doc_url": doc_url})
         return
 
-    # The new doc_generator accepts both flat data dict (new) and sections list (old).
-    # Pass the structured parsed dict as sections for compatibility.
-    title = parsed.get("module_title") or parsed.get("module_name") or "QAD Custom Module Documentation"
-    module_label = parsed.get("module_name", module.upper() if module else "module")
+    # Extract title from new template structure
+    tp = parsed.get("TITLE_PAGE") or {}
+    title = tp.get("SYSTEM_FULL_NAME") or tp.get("SYSTEM_NAME") or "QAD Custom Module Documentation"
+    module_label = tp.get("SYSTEM_NAME") or (module.upper() if module else "module")
 
     doc_url = generate_document(
         title=title,
         sections=[{"heading": "structured_data", "metadata": parsed}],
     )
 
+    caps = (parsed.get("EXECUTIVE_SUMMARY") or {}).get("KEY_CAPABILITIES") or []
     summary = f"**{title}**\n\nDocumentation generated for **{module_label}** covering:\n"
-    for cap in (parsed.get("key_capabilities") or []):
+    for cap in caps:
         summary += f"- {cap}\n"
 
     for chunk in [summary[i:i + 30] for i in range(0, len(summary), 30)]:
