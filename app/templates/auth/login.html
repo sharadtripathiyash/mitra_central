@@ -1,36 +1,318 @@
 {% extends "base.html" %}
 {% block title %}Sign in · Mitra{% endblock %}
 {% block body %}
-<div class="min-h-full flex items-center justify-center px-4">
+
+<!-- Background -->
+<div class="fixed inset-0 overflow-hidden" style="background: #080c18;">
+
+  <!-- Hex grid canvas -->
+  <canvas id="bgCanvas" class="absolute inset-0 w-full h-full"></canvas>
+
+  <!-- ERP floating tags -->
+  <div class="erp-tags">
+    <span>INVENTORY</span><span>PURCHASE</span><span>FINANCE</span>
+    <span>WIP</span><span>BOM</span><span>ROUTING</span>
+    <span>SALES ORDER</span><span>VENDOR</span><span>LEDGER</span>
+    <span>MRP</span><span>COSTING</span><span>DISPATCH</span>
+  </div>
+
+  <!-- Top glow -->
+  <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px]"
+       style="background: radial-gradient(ellipse at top, rgba(59,130,246,0.15) 0%, transparent 70%);"></div>
+</div>
+
+<!-- Login -->
+<div class="relative min-h-screen flex items-center justify-center px-4">
   <div class="w-full max-w-md">
-    <div class="flex items-center justify-center mb-6">
-      <div class="h-12 w-12 rounded-xl bg-brand-800 flex items-center justify-center shadow-lg">
-        <i data-lucide="sparkles" class="text-white w-6 h-6"></i>
+
+    <!-- Brand -->
+    <div class="flex flex-col items-center mb-8">
+      <!-- Animated logo ring -->
+      <div class="logo-ring mb-5">
+        <div class="logo-inner">
+          <i data-lucide="sparkles" class="text-white w-7 h-7"></i>
+        </div>
+      </div>
+      <h1 class="text-4xl font-bold text-white tracking-tight">Mitra</h1>
+      <div class="flex items-center gap-2 mt-2">
+        <span class="h-px w-8 bg-gradient-to-r from-transparent to-blue-500"></span>
+        <p class="text-xs font-semibold tracking-[0.2em] text-blue-400 uppercase">AI Copilot for QAD ERP</p>
+        <span class="h-px w-8 bg-gradient-to-l from-transparent to-blue-500"></span>
       </div>
     </div>
-    <h1 class="text-center text-3xl font-bold text-slate-900">Welcome to Mitra</h1>
-    <p class="text-center text-slate-500 mt-2">Your AI copilot for QAD ERP</p>
 
-    <form method="post" action="/login" class="mt-8 bg-white rounded-2xl shadow-xl shadow-slate-200/60 p-8 space-y-5 border border-slate-100">
+    <!-- Premium card -->
+    <div class="premium-card rounded-2xl p-8">
+
+      <!-- Card top accent line -->
+      <div class="h-px w-full mb-6 rounded-full"
+           style="background: linear-gradient(90deg, transparent, rgba(99,102,241,0.8), rgba(59,130,246,0.8), transparent);"></div>
+
       {% if error %}
-      <div class="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-100">{{ error }}</div>
+      <div class="mb-5 bg-red-500/10 text-red-300 px-4 py-3 rounded-xl text-sm border border-red-500/20 flex items-center gap-2">
+        <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+        {{ error }}
+      </div>
       {% endif %}
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Username</label>
-        <input name="username" type="text" required autofocus
-               class="w-full rounded-lg border-slate-200 border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
-        <input name="password" type="password" required
-               class="w-full rounded-lg border-slate-200 border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
-      </div>
-      <button type="submit"
-              class="w-full bg-brand-800 hover:bg-brand-900 text-white font-semibold py-2.5 rounded-lg transition shadow-lg">
-        Sign in
-      </button>
-    </form>
-    <p class="text-center text-xs text-slate-400 mt-6">© Mitra Central</p>
+
+      <form method="post" action="/login" class="space-y-5">
+
+        <!-- Username field -->
+        <div class="float-field">
+          <input name="username" type="text" required autofocus
+                 placeholder=" "
+                 class="float-input peer" />
+          <label class="float-label">Username</label>
+        </div>
+
+        <!-- Password field -->
+        <div class="float-field">
+          <input name="password" type="password" required
+                 placeholder=" "
+                 class="float-input peer" />
+          <label class="float-label">Password</label>
+        </div>
+
+        <!-- Sign in button -->
+        <button type="submit" class="sign-in-btn w-full py-3 rounded-xl font-semibold text-white text-sm tracking-wide mt-2">
+          <span class="flex items-center justify-center gap-2">
+            <i data-lucide="log-in" class="w-4 h-4"></i>
+            Sign in to Mitra
+          </span>
+        </button>
+      </form>
+
+      <!-- Bottom accent -->
+      <div class="h-px w-full mt-6 rounded-full"
+           style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
+
+      <p class="text-center text-xs text-slate-600 mt-4 tracking-wide">
+        MITRA CENTRAL &nbsp;·&nbsp; POWERED BY AI
+      </p>
+    </div>
+
   </div>
 </div>
+
+<style>
+/* ── Premium card ──────────────────────────────────────── */
+.premium-card {
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.05) 0%,
+    rgba(255,255,255,0.02) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    0 0 0 1px rgba(99,102,241,0.1),
+    0 30px 60px rgba(0,0,0,0.5),
+    0 0 80px rgba(59,130,246,0.05),
+    inset 0 1px 0 rgba(255,255,255,0.07);
+}
+
+/* ── Logo ring ─────────────────────────────────────────── */
+.logo-ring {
+  position: relative;
+  width: 70px; height: 70px;
+}
+.logo-ring::before, .logo-ring::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+}
+.logo-ring::before {
+  border-top-color: rgba(99,102,241,0.8);
+  border-right-color: rgba(99,102,241,0.4);
+  animation: spin 3s linear infinite;
+}
+.logo-ring::after {
+  border-bottom-color: rgba(59,130,246,0.6);
+  border-left-color: rgba(59,130,246,0.2);
+  animation: spin 2s linear infinite reverse;
+  inset: -8px;
+}
+.logo-inner {
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #7c3aed);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 30px rgba(99,102,241,0.5), 0 0 60px rgba(59,130,246,0.2);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Floating label inputs ─────────────────────────────── */
+.float-field { position: relative; }
+.float-input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.75rem;
+  padding: 1rem 1rem 0.4rem;
+  color: white;
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s;
+}
+.float-input:focus {
+  border-color: rgba(99,102,241,0.6);
+  background: rgba(99,102,241,0.06);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.float-label {
+  position: absolute;
+  left: 1rem; top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.875rem;
+  color: rgba(148,163,184,0.7);
+  pointer-events: none;
+  transition: all 0.2s;
+}
+.float-input:focus ~ .float-label,
+.float-input:not(:placeholder-shown) ~ .float-label {
+  top: 0.5rem;
+  transform: none;
+  font-size: 0.65rem;
+  color: rgba(99,102,241,0.9);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ── Sign in button ────────────────────────────────────── */
+.sign-in-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #7c3aed 100%);
+  background-size: 200% 200%;
+  animation: gradientShift 3s ease infinite;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.4), 0 1px 0 rgba(255,255,255,0.1) inset;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.sign-in-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(99,102,241,0.5), 0 1px 0 rgba(255,255,255,0.1) inset;
+}
+.sign-in-btn:active { transform: translateY(0); }
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+/* ── ERP floating tags ─────────────────────────────────── */
+.erp-tags span {
+  position: absolute;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: rgba(99,102,241,0.2);
+  white-space: nowrap;
+  animation: floatTag linear infinite;
+  pointer-events: none;
+}
+.erp-tags span:nth-child(1)  { left:5%;   top:15%; animation-duration:22s; animation-delay:0s;    }
+.erp-tags span:nth-child(2)  { left:80%;  top:8%;  animation-duration:18s; animation-delay:-3s;   }
+.erp-tags span:nth-child(3)  { left:20%;  top:70%; animation-duration:25s; animation-delay:-6s;   }
+.erp-tags span:nth-child(4)  { left:65%;  top:55%; animation-duration:20s; animation-delay:-9s;   }
+.erp-tags span:nth-child(5)  { left:40%;  top:85%; animation-duration:23s; animation-delay:-2s;   }
+.erp-tags span:nth-child(6)  { left:88%;  top:40%; animation-duration:17s; animation-delay:-5s;   }
+.erp-tags span:nth-child(7)  { left:10%;  top:45%; animation-duration:28s; animation-delay:-11s;  }
+.erp-tags span:nth-child(8)  { left:55%;  top:25%; animation-duration:21s; animation-delay:-7s;   }
+.erp-tags span:nth-child(9)  { left:30%;  top:92%; animation-duration:19s; animation-delay:-14s;  }
+.erp-tags span:nth-child(10) { left:72%;  top:78%; animation-duration:24s; animation-delay:-1s;   }
+.erp-tags span:nth-child(11) { left:15%;  top:30%; animation-duration:26s; animation-delay:-8s;   }
+.erp-tags span:nth-child(12) { left:48%;  top:60%; animation-duration:16s; animation-delay:-10s;  }
+@keyframes floatTag {
+  0%   { transform: translateY(0px);   opacity: 0;   }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(-60px); opacity: 0;   }
+}
+</style>
+
+<script>
+// ── Hex grid + data flow lines on canvas ──────────────────
+const canvas = document.getElementById("bgCanvas");
+const ctx    = canvas.getContext("2d");
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// Data flow particles along diagonal lines
+const STREAMS = Array.from({ length: 18 }, (_, i) => ({
+  x:    (i / 18) * window.innerWidth * 1.5 - window.innerWidth * 0.2,
+  y:    -20,
+  speed: Math.random() * 1.2 + 0.4,
+  len:   Math.random() * 60 + 30,
+  alpha: Math.random() * 0.3 + 0.1,
+  color: Math.random() > 0.5 ? "99,102,241" : "59,130,246",
+}));
+
+// Nodes (intersection points that pulse)
+const NODES = Array.from({ length: 12 }, () => ({
+  x:     Math.random() * window.innerWidth,
+  y:     Math.random() * window.innerHeight,
+  r:     Math.random() * 2 + 1,
+  pulse: Math.random() * Math.PI * 2,
+  speed: Math.random() * 0.02 + 0.01,
+}));
+
+function drawFrame() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw faint diagonal grid lines
+  ctx.strokeStyle = "rgba(99,102,241,0.04)";
+  ctx.lineWidth   = 1;
+  for (let x = -canvas.height; x < canvas.width + canvas.height; x += 60) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + canvas.height, canvas.height);
+    ctx.stroke();
+  }
+
+  // Draw flowing data stream particles
+  STREAMS.forEach((s) => {
+    s.y += s.speed;
+    if (s.y > canvas.height + 100) {
+      s.y = -s.len;
+      s.x = Math.random() * canvas.width * 1.2 - canvas.width * 0.1;
+    }
+    const grad = ctx.createLinearGradient(s.x, s.y - s.len, s.x + s.len * 0.3, s.y);
+    grad.addColorStop(0, `rgba(${s.color},0)`);
+    grad.addColorStop(1, `rgba(${s.color},${s.alpha})`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y - s.len);
+    ctx.lineTo(s.x + s.len * 0.3, s.y);
+    ctx.stroke();
+  });
+
+  // Draw pulsing nodes
+  NODES.forEach((n) => {
+    n.pulse += n.speed;
+    const scale = 0.6 + Math.sin(n.pulse) * 0.4;
+    const alpha = 0.3 + Math.sin(n.pulse) * 0.2;
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r * scale * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(99,102,241,${alpha * 0.3})`;
+    ctx.lineWidth   = 0.5;
+    ctx.stroke();
+
+    // Inner dot
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r * scale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(99,102,241,${alpha})`;
+    ctx.fill();
+  });
+
+  requestAnimationFrame(drawFrame);
+}
+drawFrame();
+</script>
+
 {% endblock %}

@@ -22,46 +22,102 @@ import { renderMarkdown, escapeHtml, buildWsUrl } from "../../utils/helpers";
 const WS_PATH   = window.__QADZONE_WS_PATH__ || "/agents/qadzone/ws";
 const EMBED_URL = "/agents/qadzone/embed";
 
+// ── Card icons as inline SVGs ─────────────────────────────────────────────────
+function IconSearch() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+  );
+}
+function IconDoc() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+    </svg>
+  );
+}
+function IconUpgrade() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+      <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+    </svg>
+  );
+}
+
 // ── Empty state ───────────────────────────────────────────────────────────────
-function EmptyState({ onSwitch }) {
+function EmptyState({ onSwitch, activeMode }) {
   const cards = [
-  {
-    key: "query",
-    label: "Search & Ask",
-    sub: "Ask questions about your custom QAD programs in plain English — get instant answers"
-  },
-  {
-    key: "documentation",
-    label: "Generate Docs",
-    sub: "Upload your custom code and get a ready-to-share Word document automatically"
-  },
-  {
-    key: "modernisation",
-    label: "Upgrade Analysis",
-    sub: "See what will break and what needs updating when moving to a newer QAD version"
-  },
-];
+    {
+      key: "query",
+      label: "Search & Ask",
+      sub: "Ask questions about your custom QAD programs in plain English — get instant answers",
+      icon: <IconSearch />,
+      color: "bg-blue-50 text-blue-600",
+      activeColor: "border-blue-300 bg-blue-50",
+    },
+    {
+      key: "documentation",
+      label: "Generate Docs",
+      sub: "Upload your custom code and get a ready-to-share Word document automatically",
+      icon: <IconDoc />,
+      color: "bg-violet-50 text-violet-600",
+      activeColor: "border-violet-300 bg-violet-50",
+    },
+    {
+      key: "modernisation",
+      label: "Upgrade Analysis",
+      sub: "See what will break and what needs updating when moving to a newer QAD version",
+      icon: <IconUpgrade />,
+      color: "bg-emerald-50 text-emerald-600",
+      activeColor: "border-emerald-300 bg-emerald-50",
+    },
+  ];
+
   return (
     <div className="h-full flex flex-col items-center justify-center px-6 pb-32">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-semibold text-slate-800 tracking-tight">QAD-Zone</h1>
-        <p className="mt-2 text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
-          Custom code knowledge base, documentation &amp; modernisation.
+      <div className="text-center mb-10">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 shadow-lg mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+            fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+          </svg>
+        </div>
+        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">QAD-Zone</h1>
+        <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
+          Your custom code knowledge base — search, document, and modernise with AI.
         </p>
       </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
-        {cards.map((c) => (
-          <button key={c.key} onClick={() => onSwitch(c.key)}
-            className="group flex items-center gap-3 text-left bg-white border border-slate-200 rounded-lg p-4 hover:bg-slate-50 hover:border-slate-300 transition-all duration-150">
-            <div className="h-10 w-10 rounded bg-slate-100 group-hover:bg-slate-200 shrink-0 flex items-center justify-center text-slate-600 font-bold text-sm">
-              {c.label[0]}
-            </div>
-            <div>
-              <div className="text-sm font-medium text-slate-700">{c.label}</div>
-              <div className="text-xs text-slate-400 mt-0.5">{c.sub}</div>
-            </div>
-          </button>
-        ))}
+        {cards.map((c) => {
+          const isActive = activeMode === c.key;
+          return (
+            <button
+              key={c.key}
+              onClick={() => onSwitch(c.key)}
+              className={`group flex flex-col text-left rounded-2xl p-5 border-2 transition-all duration-150
+                ${isActive
+                  ? `${c.activeColor} shadow-sm`
+                  : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md"
+                }`}
+            >
+              <div className={`h-10 w-10 rounded-xl ${c.color} shrink-0 flex items-center justify-center mb-3 transition-transform duration-150 ${isActive ? "scale-110" : "group-hover:scale-110"}`}>
+                {c.icon}
+              </div>
+              <div className="text-sm font-semibold text-slate-800 mb-1">{c.label}</div>
+              <div className="text-xs text-slate-400 leading-relaxed">{c.sub}</div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -88,7 +144,7 @@ function openWs(payload, { onToken, onStatus, onFrame, onDone, onError }) {
   };
 
   ws.onerror  = () => onError("Connection error. Please try again.");
-  ws.onclose  = () => onDone(acc);   // safe — onDone is idempotent
+  ws.onclose  = () => onDone(acc);
 
   return () => { try { ws.close(); } catch (_) {} };
 }
@@ -103,7 +159,6 @@ export function QadZone() {
   const [statusText, setStatus]   = useState("");
   const [liveHtml, setLiveHtml]   = useState("");
 
-  // Modernisation
   const [modernForm, setModernForm] = useState({
     currentVersion: "", currentCustom: "", targetVersion: "", targetCustom: "",
   });
@@ -113,33 +168,23 @@ export function QadZone() {
   const [modernLiveHtml, setModernLiveHtml] = useState("");
   const [modernResult, setModernResult]     = useState(null);
 
-  // File upload
   const { uploadedFiles, addFiles, removeFile, clearFiles } = useFileUpload();
-
-  // Cached uploaded code for follow-up queries after doc generation
   const cachedFilesRef = useRef([]);
+  const closeWsRef     = useRef(null);
+  const chatDoneRef    = useRef(false);
+  const modernDoneRef  = useRef(false);
+  const bottomRef      = useRef(null);
 
-  // WS cleanup ref
-  const closeWsRef = useRef(null);
-
-  // Done-guard refs — prevent double-finalise from onclose + done frame
-  const chatDoneRef   = useRef(false);
-  const modernDoneRef = useRef(false);
-
-  // Scroll anchor
-  const bottomRef = useRef(null);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, liveHtml, loading]);
 
-  // ── mode switch ────────────────────────────────────────────────────────────
   function switchMode(key) {
     setMode(key);
     clearFiles();
     setLiveHtml(""); setStatus(""); setStreaming(false);
   }
 
-  // ── Apex embed ─────────────────────────────────────────────────────────────
   async function handleEmbed(doc) {
     const res = await fetch(EMBED_URL, {
       method: "POST",
@@ -150,7 +195,6 @@ export function QadZone() {
     if (!res.ok) throw new Error(`Embed failed: ${res.status}`);
   }
 
-  // ── build final HTML ───────────────────────────────────────────────────────
   function buildHtml(text, extras) {
     let html = "";
     if (text) html += `<div class="prose-content">${renderMarkdown(text)}</div>`;
@@ -169,15 +213,13 @@ export function QadZone() {
     return html || '<div class="text-slate-500 text-sm italic">No response received.</div>';
   }
 
-  // ── send chat ──────────────────────────────────────────────────────────────
   const sendChat = useCallback((overrideQuestion) => {
-    const q       = overrideQuestion || input.trim();
+    const q        = overrideQuestion || input.trim();
     const hasFiles = uploadedFiles.length > 0;
 
     if (!q && !hasFiles) return;
     if (loading) return;
 
-    // Cache files for follow-up use
     if (hasFiles) cachedFilesRef.current = [...uploadedFiles];
 
     const displayText = overrideQuestion || q || `📎 ${uploadedFiles.map((f) => f.name).join(", ")}`;
@@ -185,15 +227,13 @@ export function QadZone() {
       ? "Generate documentation for the uploaded code"
       : "Analyse and explain the uploaded code");
 
-    const filesToSend = hasFiles
-      ? [...uploadedFiles]
-      : (cachedFilesRef.current || []);
+    const filesToSend = hasFiles ? [...uploadedFiles] : (cachedFilesRef.current || []);
 
     setInput(""); clearFiles();
     setMessages((prev) => [...prev, { role: "user", text: displayText }]);
     setLoading(true); setStreaming(false); setStatus(""); setLiveHtml("");
 
-    let extraDoc      = null;
+    let extraDoc       = null;
     let extraFollowups = null;
     chatDoneRef.current = false;
 
@@ -230,12 +270,10 @@ export function QadZone() {
     closeWsRef.current = closeWs;
   }, [input, uploadedFiles, mode, loading, clearFiles]);
 
-  // ── follow-up chip click delegation ───────────────────────────────────────
   useEffect(() => {
     function handler(e) {
       const chip = e.target.closest("[data-followup]");
       if (!chip) return;
-      // Only handle clicks in the chat area (not inside Apex widget)
       if (e.target.closest("#apex-root")) return;
       const q = chip.dataset.followup;
       if (q) sendChat(q);
@@ -244,7 +282,6 @@ export function QadZone() {
     return () => document.removeEventListener("click", handler);
   }, [sendChat]);
 
-  // ── send modernisation ─────────────────────────────────────────────────────
   function sendModernisation() {
     const current = (modernForm.currentCustom || modernForm.currentVersion || "").trim();
     const target  = (modernForm.targetCustom  || modernForm.targetVersion  || "").trim();
@@ -285,7 +322,6 @@ export function QadZone() {
     closeWsRef.current = closeWs;
   }
 
-  // ── render ─────────────────────────────────────────────────────────────────
   const showEmpty = messages.length === 0 && mode !== "modernisation";
 
   return (
@@ -293,11 +329,20 @@ export function QadZone() {
 
       {/* Header */}
       <header className="h-14 shrink-0 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* Mini logo in header */}
+          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+              fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            </svg>
+          </div>
           <span className="text-sm font-semibold text-slate-700">QAD-Zone</span>
           <span className="text-slate-300">|</span>
-          <span className="text-sm text-slate-400">
-            Custom code knowledge base, documentation &amp; modernisation.
+          <span className="text-sm text-slate-400 hidden sm:inline">
+            Custom code knowledge base
           </span>
         </div>
         <ModeBar mode={mode} onChange={switchMode} />
@@ -307,10 +352,8 @@ export function QadZone() {
       <div className="flex-1 relative overflow-hidden">
         <main className="h-full overflow-y-auto">
 
-          {/* Empty state */}
-          {showEmpty && <EmptyState onSwitch={switchMode} />}
+          {showEmpty && <EmptyState onSwitch={switchMode} activeMode={mode} />}
 
-          {/* Modernisation panel */}
           {mode === "modernisation" && (
             <ModernisationPanel
               form={modernForm} setForm={setModernForm}
@@ -323,7 +366,6 @@ export function QadZone() {
             />
           )}
 
-          {/* Chat thread — query + docs */}
           {mode !== "modernisation" && messages.length > 0 && (
             <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
               {messages.map((m, i) => (
@@ -340,14 +382,12 @@ export function QadZone() {
                         className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 prose-container"
                         dangerouslySetInnerHTML={{ __html: m.html }}
                       />
-                      {/* DocCard with Apex embed prompt — rendered as React */}
                       {m.doc && <DocCard doc={m.doc} onEmbed={handleEmbed} />}
                     </div>
                   )}
                 </div>
               ))}
 
-              {/* Live streaming bubble */}
               {(streaming || (loading && statusText)) && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
                   {statusText && (
@@ -365,7 +405,6 @@ export function QadZone() {
                 </div>
               )}
 
-              {/* Thinking */}
               {loading && !streaming && !statusText && (
                 <div className="flex items-center gap-2 text-slate-500 text-sm">
                   <span className="inline-block w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
@@ -378,7 +417,6 @@ export function QadZone() {
           )}
         </main>
 
-        {/* Floating input bar */}
         {mode !== "modernisation" && (
           <FileUploadBar
             mode={mode}
