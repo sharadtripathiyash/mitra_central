@@ -752,7 +752,8 @@ def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
 
     try:
         import cairosvg  # noqa: F401 — presence check only
-    except ImportError:
+    except (ImportError, OSError):
+        # cairosvg installed but native libcairo-2.dll not present (common on Windows)
         return
 
     # Filter out any instruction strings the LLM may have left in NODES/ARROWS
