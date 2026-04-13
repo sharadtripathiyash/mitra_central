@@ -30,6 +30,31 @@ from app.agents.qad_zone.modernisation import analyse_modernisation
 
 logger = logging.getLogger(__name__)
 
+# ── Web search helper (DuckDuckGo — same approach as modernisation module) ────
+try:
+    from duckduckgo_search import DDGS
+    _ddg_available = True
+except ImportError:
+    _ddg_available = False
+    logger.warning("duckduckgo-search not installed; QAD replacement web search disabled")
+
+
+def _web_search(query: str, max_results: int = 5) -> str:
+    """Search the web using DuckDuckGo. Returns formatted results string."""
+    if not _ddg_available:
+        return "Web search not available (install duckduckgo-search)."
+    try:
+        results = []
+        with DDGS() as ddgs:
+            for r in ddgs.text(query, max_results=max_results):
+                results.append(
+                    f"• {r.get('title', '')}\n  {r.get('body', '')}\n  Source: {r.get('href', '')}"
+                )
+        return "\n\n".join(results) if results else "No results found."
+    except Exception as exc:
+        logger.warning("DuckDuckGo search failed: %s", exc)
+        return f"Web search failed: {exc}"
+
 AGENT_KEY = "qadzone"
 
 # Supported text-based extensions for uploaded files
@@ -345,6 +370,26 @@ Extract ONLY what you can find in the code. Omit keys with no evidence."""
         logger.warning("PASS1 failed to parse — falling back to single-pass")
         facts = {}
 
+    # ── WEB RESEARCH: Search for standard QAD native replacements ────────────
+    await send_status(ws, "Searching QAD knowledge base for standard native alternatives...")
+
+    _sys_full   = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
+    _module_area = facts.get("module") or ""
+    _biz_purpose = facts.get("business_purpose") or ""
+
+    _searches = [
+        f"QAD ERP standard native module \"{_sys_full}\" built-in functionality which version",
+        f"QAD ERP {_module_area} standard feature replace custom program native alternative",
+        f"QAD ERP {_sys_full} {_module_area} standard functionality introduced version release",
+        f"QAD Enterprise Applications {_module_area} {_sys_full} out-of-box feature",
+    ]
+    _web_parts = []
+    for _q in _searches:
+        logger.info("QAD replacement search: %s", _q)
+        _web_parts.append(f"QUERY: {_q}\n{_web_search(_q, max_results=4)}")
+    web_replacement_research = "\n\n---\n\n".join(_web_parts)
+    logger.info("Web research complete: %d chars", len(web_replacement_research))
+
     # ── PASS 2: Generate full documentation JSON from extracted facts ─────────
     await send_status(ws, "Pass 2/2 — Building full documentation structure...")
 
@@ -364,6 +409,9 @@ VERBOSITY RULES (strictly enforced):
 EXTRACTED FACTS:
 {raw1}
 
+WEB RESEARCH — STANDARD QAD NATIVE REPLACEMENT ANALYSIS:
+{web_replacement_research}
+
 CRITICAL INSTRUCTIONS:
 1. Every paragraph field: write 4-6 full, detailed sentences — never a single short sentence.
 2. Every program purpose: explain what the program does, what tables it reads/writes, what the user sees, and its role in the overall system.
@@ -372,6 +420,7 @@ CRITICAL INSTRUCTIONS:
 5. QUICK_REFERENCE: set SHOW to true for any table where facts contain matching data (transaction_types → TRANSACTION_TYPE_TABLE, auth_groups → AUTH_GROUP_TABLE, include_files → INCLUDE_FILES_TABLE).
 6. APPROVAL_WORKFLOW: set SHOW to true if facts.approval_workflow.exists is true.
 7. All boolean SHOW values must be true or false (JSON booleans, not strings).
+8. QAD_STANDARD_REPLACEMENT: always set SHOW to true. Use the WEB RESEARCH section above to populate this accurately. For each major business capability of this system, find the closest standard QAD native module/feature from the research and state which QAD version introduced it. If the research shows no native alternative exists, still include the row with "Not Available" in the feasibility column and explain why in RECOMMENDATION_DETAIL. Be specific — name actual QAD modules (e.g. "QAD Requisition Management", "QAD Procurement", "QAD Financials AP").
 
 Return ONLY valid JSON:
 
@@ -585,6 +634,22 @@ Return ONLY valid JSON:
       "• LABEL: use YES/NO for decisions, a brief condition phrase ('Approved', 'Invalid Site'), or leave empty for simple sequential flow.",
       "• COLOR: green for success/approved paths, red for error/rejected paths, blue for normal flow"
     ]
+  }},
+  "QAD_STANDARD_REPLACEMENT": {{
+    "SHOW": true,
+    "INTRO_PARA": "3-5 sentence paragraph: based on web research and facts, explain whether standard QAD ERP provides native functionality that could replace or partially replace this customization. Mention the business capability being compared, what standard QAD offers, and the overall conclusion (full replacement possible / partial replacement / keep custom).",
+    "REPLACEMENT_TABLE": {{
+      "headers": ["Business Capability", "Custom Implementation (Current)", "Standard QAD Native Module / Feature", "Available Since (QAD Version)", "Replacement Feasibility"],
+      "rows": [
+        ["One row per major business capability of this system. For each: describe what the custom code does | describe the closest standard QAD module/feature found in web research | the QAD version it was introduced (e.g. 'QAD 2019 SE', 'QAD Cloud EE 2022') | Feasibility: Full / Partial / Not Available"]
+      ]
+    }},
+    "RECOMMENDATION": "Full Replacement Possible | Partial Replacement | Keep Custom — No Native Alternative",
+    "RECOMMENDATION_DETAIL": "3-5 sentence paragraph explaining the recommendation: which capabilities can switch to standard, which require custom logic to remain, any data migration considerations, and the suggested approach. Be specific about QAD module names and versions from the web research.",
+    "GAPS_IF_REPLACED": [
+      "Each gap as a complete sentence: what this custom system does that standard QAD cannot do even after migration — from web research findings"
+    ],
+    "VERSION_AVAILABILITY_NOTE": "1-2 sentence note on which QAD version(s) first introduced the relevant standard functionality. Reference specific release names/years from the web research (e.g. 'This functionality was introduced in QAD Cloud EE 2021.1 as part of the Procurement module enhancements.'). Omit key if no version data found in research."
   }}
 }}
 

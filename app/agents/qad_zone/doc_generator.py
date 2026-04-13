@@ -620,6 +620,69 @@ def _build_section6(doc: Document, SETUP: dict) -> None:
     doc.add_page_break()
 
 
+def _build_qad_replacement_section(doc: Document, REP: dict) -> None:
+    """Standard QAD Native Replacement Analysis — web-researched section."""
+    if not (REP and REP.get("SHOW")):
+        return
+
+    _h1(doc, "Standard QAD Native Replacement Analysis")
+
+    # Info banner
+    _info(doc, (
+        "This section is generated using live web research. It analyses whether standard "
+        "QAD ERP native modules can replace or partially replace this customization, "
+        "and identifies the QAD version in which that functionality became available."
+    ))
+
+    if _has(REP.get("INTRO_PARA")):
+        _para(doc, REP["INTRO_PARA"])
+
+    # Replacement capability table
+    rt = REP.get("REPLACEMENT_TABLE") or {}
+    if _has(rt.get("rows")) and _has(rt.get("headers")):
+        _h2(doc, "Capability — Standard QAD Mapping")
+        _data_table(doc, rt["headers"], rt["rows"])
+
+    # Recommendation badge
+    rec = (REP.get("RECOMMENDATION") or "").strip()
+    if _has(rec):
+        _h2(doc, "Overall Recommendation")
+        # Color the recommendation line based on its value
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after  = Pt(6)
+        if "Full Replacement" in rec:
+            badge_fill = FILL["LGREEN"]; badge_color = C["DKGREEN"]
+        elif "Partial" in rec:
+            badge_fill = FILL["YELLOW"]; badge_color = C["YELLOW"]
+        else:
+            badge_fill = FILL["TEAL"]; badge_color = C["TEAL"]
+        pPr = p._p.get_or_add_pPr()
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear"); shd.set(qn("w:color"), "auto")
+        shd.set(qn("w:fill"), badge_fill)
+        pPr.append(shd)
+        run = p.add_run(f"  ► {rec}")
+        run.font.name = FONT; run.font.size = Pt(12)
+        run.font.bold = True; run.font.color.rgb = badge_color
+
+    if _has(REP.get("RECOMMENDATION_DETAIL")):
+        _para(doc, REP["RECOMMENDATION_DETAIL"])
+
+    # Gaps if replaced
+    gaps = REP.get("GAPS_IF_REPLACED") or []
+    if gaps:
+        _h2(doc, "Remaining Gaps if Migrated to Standard QAD")
+        for g in gaps:
+            if _has(g):
+                _bullet(doc, g)
+
+    if _has(REP.get("VERSION_AVAILABILITY_NOTE")):
+        _note(doc, f"Version Note: {REP['VERSION_AVAILABILITY_NOTE']}")
+
+    doc.add_page_break()
+
+
 def _build_section7(doc: Document, NAT: dict) -> None:
     """7. QAD Native Functionality (optional, SHOW flag)"""
     if not (NAT and NAT.get("SHOW")):
@@ -988,6 +1051,11 @@ def generate_document(title: str, sections: list[dict], *, subtitle: str = "Mitr
     ES = D.get("EXECUTIVE_SUMMARY")
     if _has(ES):
         _build_section1(doc, ES)
+
+    # Standard QAD Replacement Analysis — web-researched, appears early as strategic section
+    REP = D.get("QAD_STANDARD_REPLACEMENT")
+    if _has(REP):
+        _build_qad_replacement_section(doc, REP)
 
     ARCH = D.get("ARCHITECTURE")
     if _has(ARCH):
