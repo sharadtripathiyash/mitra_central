@@ -440,7 +440,7 @@ Return ONLY valid JSON matching the structure below. Rules:
 Fill every included field with specific data from the code. Omit keys you cannot fill with real data.
 """
 
-    raw = await openai_chat(system, prompt, max_tokens=4096)
+    raw = await openai_chat(system, prompt, max_tokens=16000)
 
     try:
         parsed = parse_json_response(raw)
