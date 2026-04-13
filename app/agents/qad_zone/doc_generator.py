@@ -9,13 +9,12 @@ Template structure (matches generate_doc.js / template_schema.json):
 Design rules:
 - Only render a section / subsection / table / bullet if LLM returned real data.
 - isEmpty() / _has() guard every piece of content — nothing is ever assumed present.
-- Flowchart page is rendered only when FLOWCHART.SHOW=true and cairosvg is available.
+- Flowchart is rendered as native Word elements (paragraphs + single-cell tables).
+  No images, no external libraries required.
 """
 from __future__ import annotations
 
 import uuid
-import tempfile
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -739,22 +738,24 @@ def _build_end_page(doc: Document, system_name: str, full_name: str, doc_date: s
     r2.font.name = FONT; r2.font.size = Pt(9); r2.font.color.rgb = RGBColor(0xAA, 0xAA, 0xAA)
 
 
-# ── Flowchart (optional — requires cairosvg) ─────────────────────────────────
-
-def _hex(h: str):
-    """Convert hex string to RGB tuple."""
-    h = h.lstrip("#")
-    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
-
+# ── Flowchart (native Word elements — no images, no external libs) ───────────
 
 def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
-    """Render flowchart as PNG using Pillow (pure Python, no Cairo needed).
-    Silently skipped if SHOW is false or nodes are missing/invalid.
+    """Build a native Word flow diagram — no images, no external libs.
+
+    Layout:
+      • Each lane renders as a coloured H2 heading (swim-lane label)
+      • Each node renders as a single-cell styled table row
+        - oval   → dark-blue shading, white bold text,  ● prefix
+        - box    → blue/green shading, white bold text
+        - diamond→ yellow shading, dark text,            ◆ prefix
+      • Arrows between nodes are centred ↓ paragraphs
+      • YES/NO branch arrows include the label inline: ↓ YES  /  → NO
     """
     if not (FC and FC.get("SHOW")):
         return
 
-    # Filter out any instruction strings the LLM may have left in arrays
+    # Filter out instruction strings the LLM may have left in arrays
     lanes  = [l for l in (FC.get("LANES",  []) or []) if isinstance(l, dict) and l.get("LANE_ID")]
     nodes  = [n for n in (FC.get("NODES",  []) or []) if isinstance(n, dict) and n.get("ID")]
     arrows = [a for a in (FC.get("ARROWS", []) or []) if isinstance(a, dict) and a.get("FROM")]
@@ -762,154 +763,169 @@ def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
     if not nodes:
         return
 
-    try:
-        import io as _io
-        from PIL import Image, ImageDraw, ImageFont
+    # ── Color maps ───────────────────────────────────────────────────────────
+    NODE_FILL = {
+        "dark_blue":  FILL["BLUE"],
+        "light_blue": FILL["LBLUE"],
+        "green":      "375623",
+        "light_green":FILL["LGREEN"],
+        "red":        "FCE4D6",
+        "yellow":     FILL["YELLOW"],
+        "gray":       FILL["LGRAY"],
+    }
+    NODE_TEXT = {
+        "dark_blue":  C["WHITE"],
+        "light_blue": C["BLUE"],
+        "green":      C["WHITE"],
+        "light_green":C["DKGREEN"],
+        "red":        C["ACCENT"],
+        "yellow":     C["YELLOW"],
+        "gray":       C["DGRAY"],
+    }
+    LANE_HDR_FILL = {
+        "dark_blue":  FILL["BLUE"],
+        "light_blue": FILL["MBLUE"],
+        "green":      "375623",
+    }
 
-        # ── Canvas setup ──────────────────────────────────────────────────────
-        W, H   = 1800, max(900, 120 + len(nodes) * 95)
-        n_lanes = max(len(lanes), 1)
-        LANE_W  = W // n_lanes
+    # ── Build a lookup: node_id → arrow destinations ──────────────────────────
+    arrow_map: dict[str, list[dict]] = {}
+    for a in arrows:
+        arrow_map.setdefault(a["FROM"], []).append(a)
 
-        COLORS = {
-            "dark_blue":   {"fill": (0x1F,0x4E,0x79), "text": (255,255,255), "stroke": (0x1F,0x4E,0x79)},
-            "light_blue":  {"fill": (0xDE,0xEA,0xF1), "text": (0x1F,0x4E,0x79), "stroke": (0x2E,0x75,0xB6)},
-            "green":       {"fill": (0x37,0x56,0x23), "text": (255,255,255), "stroke": (0x37,0x56,0x23)},
-            "light_green": {"fill": (0xE2,0xEF,0xDA), "text": (0x37,0x56,0x23), "stroke": (0x70,0xAD,0x47)},
-            "red":         {"fill": (0xFC,0xE4,0xD6), "text": (0xC0,0x00,0x00), "stroke": (0xC0,0x00,0x00)},
-            "yellow":      {"fill": (0xFF,0xF2,0xCC), "text": (0x7D,0x4E,0x00), "stroke": (0xF4,0xA8,0x00)},
-            "gray":        {"fill": (0xF2,0xF2,0xF2), "text": (0x40,0x40,0x40), "stroke": (0x7F,0x7F,0x7F)},
+    # ── Group nodes by lane (preserve order) ─────────────────────────────────
+    lane_order = [l["LANE_ID"] for l in lanes] if lanes else []
+    nodes_by_lane: dict[str, list] = {}
+    for n in nodes:
+        lid = n.get("LANE", lane_order[0] if lane_order else "")
+        nodes_by_lane.setdefault(lid, []).append(n)
+    # Nodes with no lane get their own group
+    all_lids = lane_order + [lid for lid in nodes_by_lane if lid not in lane_order]
+
+    # ── Helper: draw one node as a single-cell table ──────────────────────────
+    def _draw_node(node: dict) -> None:
+        ntype  = node.get("TYPE", "box")
+        color  = node.get("COLOR", "dark_blue")
+        label  = node.get("LABEL", "").replace("{{SYSTEM_NAME}}", system_name).replace("\\n", " ")
+        fill   = NODE_FILL.get(color, FILL["BLUE"])
+        tcolor = NODE_TEXT.get(color, C["WHITE"])
+
+        if ntype == "oval":
+            prefix = "⬤  "
+            font_size = 11
+        elif ntype == "diamond":
+            prefix = "◆  "
+            font_size = 10
+        else:
+            prefix = ""
+            font_size = 10
+
+        table = doc.add_table(rows=1, cols=1)
+        table.style = "Table Grid"
+        cell = table.rows[0].cells[0]
+        _shading(cell, fill)
+        _borders(cell, color=fill)
+        _cell_margins(cell)
+
+        # Vertical align middle
+        tcPr = cell._tc.get_or_add_tcPr()
+        vAlign = OxmlElement("w:vAlign")
+        vAlign.set(qn("w:val"), "center")
+        tcPr.append(vAlign)
+
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(f"{prefix}{label}")
+        run.font.name  = FONT
+        run.font.size  = Pt(font_size)
+        run.font.bold  = True
+        run.font.color.rgb = tcolor
+
+        doc.add_paragraph().paragraph_format.space_after = Pt(0)
+
+    # ── Helper: draw a centred arrow ──────────────────────────────────────────
+    def _draw_arrow(label: str = "", color_key: str = "blue") -> None:
+        arrow_colors = {
+            "blue":  C["MBLUE"],
+            "green": C["DKGREEN"],
+            "red":   C["ACCENT"],
         }
-        LANE_BG = {
-            "dark_blue":  (0xF7,0xFA,0xFD),
-            "light_blue": (0xEB,0xF3,0xFB),
-            "green":      (0xF0,0xF7,0xEE),
-        }
-        LANE_HDR = {
-            "dark_blue":  (0x1F,0x4E,0x79),
-            "light_blue": (0x2E,0x75,0xB6),
-            "green":      (0x37,0x56,0x23),
-        }
-        ARROW_COLORS = {
-            "blue":  (0x1F,0x4E,0x79),
-            "green": (0x37,0x56,0x23),
-            "red":   (0xC0,0x00,0x00),
-        }
-
-        img = Image.new("RGB", (W, H), (0xF7,0xFA,0xFD))
-        draw = ImageDraw.Draw(img)
-
-        # Load fonts (fall back to default if not found)
-        try:
-            fnt_bold  = ImageFont.truetype("arialbd.ttf",  18)
-            fnt_norm  = ImageFont.truetype("arial.ttf",    14)
-            fnt_small = ImageFont.truetype("arial.ttf",    12)
-            fnt_title = ImageFont.truetype("arialbd.ttf",  22)
-        except Exception:
-            fnt_bold = fnt_norm = fnt_small = fnt_title = ImageFont.load_default()
-
-        # ── Title bar ─────────────────────────────────────────────────────────
-        draw.rectangle([0, 0, W, 50], fill=(0x1F,0x4E,0x79))
-        title_text = f"{system_name} — System Process Flow"
-        draw.text((W // 2, 25), title_text, font=fnt_title, fill=(255,255,255), anchor="mm")
-
-        # ── Lane backgrounds & headers ────────────────────────────────────────
-        lane_x: dict[str, int] = {}
-        for i, lane in enumerate(lanes):
-            lx = i * LANE_W
-            lane_x[lane["LANE_ID"]] = lx
-            bg  = LANE_BG.get(lane.get("LANE_COLOR",""), (0xF7,0xFA,0xFD))
-            hdr = LANE_HDR.get(lane.get("LANE_COLOR",""), (0x1F,0x4E,0x79))
-            draw.rectangle([lx, 50, lx + LANE_W, H], fill=bg)
-            if i > 0:
-                draw.line([lx, 50, lx, H], fill=(0xC5,0xD9,0xEF), width=1)
-            draw.rectangle([lx, 50, lx + LANE_W, 82], fill=hdr)
-            label = lane.get("LANE_LABEL","").replace("\\n", "\n")
-            draw.text((lx + LANE_W // 2, 66), label, font=fnt_small,
-                      fill=(255,255,255), anchor="mm", align="center")
-
-        # ── Compute node positions ────────────────────────────────────────────
-        lane_count: dict[str, int] = {}
-        node_pos: dict[str, tuple] = {}
-        for n in nodes:
-            lane_id = n.get("LANE", lanes[0]["LANE_ID"] if lanes else "")
-            lx = lane_x.get(lane_id, 0)
-            idx = lane_count.get(lane_id, 0)
-            lane_count[lane_id] = idx + 1
-            cx = lx + LANE_W // 2
-            cy = 110 + idx * 95
-            node_pos[n["ID"]] = (cx, cy)
-
-        NW, NH = LANE_W - 30, 40
-
-        # ── Draw arrows first (behind nodes) ─────────────────────────────────
-        for a in arrows:
-            frm = node_pos.get(a.get("FROM",""))
-            to  = node_pos.get(a.get("TO",""))
-            if not frm:
-                continue
-            tx = to[0] if to else frm[0] + 40
-            ty = to[1] if to else frm[1] + 30
-            color = ARROW_COLORS.get(a.get("COLOR","blue"), ARROW_COLORS["blue"])
-            draw.line([frm[0], frm[1], tx, ty], fill=color, width=2)
-            # Arrowhead
-            import math
-            angle = math.atan2(ty - frm[1], tx - frm[0])
-            aw = 10
-            ax1 = tx - aw * math.cos(angle - 0.4)
-            ay1 = ty - aw * math.sin(angle - 0.4)
-            ax2 = tx - aw * math.cos(angle + 0.4)
-            ay2 = ty - aw * math.sin(angle + 0.4)
-            draw.polygon([(tx,ty),(ax1,ay1),(ax2,ay2)], fill=color)
-            if _has(a.get("LABEL")):
-                mx = (frm[0] + tx) // 2 + 4
-                my = (frm[1] + ty) // 2 - 10
-                draw.text((mx, my), a["LABEL"], font=fnt_small, fill=color)
-
-        # ── Draw nodes ────────────────────────────────────────────────────────
-        for n in nodes:
-            pos = node_pos.get(n.get("ID",""))
-            if not pos:
-                continue
-            cx, cy = pos
-            col   = COLORS.get(n.get("COLOR",""), COLORS["dark_blue"])
-            label = n.get("LABEL","").replace("{{SYSTEM_NAME}}", system_name).replace("\\n", "\n")
-            ntype = n.get("TYPE","box")
-
-            if ntype == "oval":
-                rx, ry = NW // 2 - 5, 20
-                draw.ellipse([cx-rx, cy-ry, cx+rx, cy+ry], fill=col["fill"], outline=col["stroke"], width=2)
-                draw.text((cx, cy), label, font=fnt_bold, fill=col["text"], anchor="mm", align="center")
-
-            elif ntype == "diamond":
-                dw, dh = NW // 2, 26
-                pts = [(cx, cy-dh), (cx+dw, cy), (cx, cy+dh), (cx-dw, cy)]
-                draw.polygon(pts, fill=col["fill"], outline=col["stroke"])
-                draw.text((cx, cy), label, font=fnt_small, fill=col["text"], anchor="mm", align="center")
-
-            else:  # box
-                x0, y0 = cx - NW//2, cy - NH//2
-                draw.rounded_rectangle([x0, y0, x0+NW, y0+NH], radius=5,
-                                       fill=col["fill"], outline=col["stroke"], width=2)
-                draw.text((cx, cy), label, font=fnt_norm, fill=col["text"], anchor="mm", align="center")
-
-        # ── Save to bytes ─────────────────────────────────────────────────────
-        buf = _io.BytesIO()
-        img.save(buf, format="PNG")
-        png_data = buf.getvalue()
-
-        # ── Embed in Word doc ─────────────────────────────────────────────────
-        doc.add_page_break()
-        _h1(doc, "System Process Flow")
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run()
-        run.add_picture(_io.BytesIO(png_data), width=Inches(9))
-        doc.add_page_break()
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        text = f"↓  {label}" if label else "↓"
+        run = p.add_run(text)
+        run.font.name  = FONT
+        run.font.size  = Pt(11)
+        run.font.bold  = True
+        run.font.color.rgb = arrow_colors.get(color_key, C["MBLUE"])
 
-    except Exception as e:
-        import logging as _log
-        _log.getLogger(__name__).warning("Flowchart render skipped: %s", e)
+    # ── Render the flowchart ──────────────────────────────────────────────────
+    doc.add_page_break()
+    _h1(doc, "System Process Flow")
+
+    rendered_ids: set[str] = set()
+
+    for lid in all_lids:
+        lane_nodes = nodes_by_lane.get(lid, [])
+        if not lane_nodes:
+            continue
+
+        # Lane header
+        lane_obj = next((l for l in lanes if l["LANE_ID"] == lid), None)
+        if lane_obj:
+            lane_label = lane_obj.get("LANE_LABEL", lid).replace("\\n", " — ")
+            hdr_fill   = LANE_HDR_FILL.get(lane_obj.get("LANE_COLOR","dark_blue"), FILL["BLUE"])
+            # Render as a styled paragraph
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_after  = Pt(4)
+            pPr = p._p.get_or_add_pPr()
+            shd = OxmlElement("w:shd")
+            shd.set(qn("w:val"), "clear"); shd.set(qn("w:color"), "auto")
+            shd.set(qn("w:fill"), hdr_fill)
+            pPr.append(shd)
+            run = p.add_run(f"  ▶  {lane_label}")
+            run.font.name = FONT; run.font.size = Pt(11)
+            run.font.bold = True; run.font.color.rgb = C["WHITE"]
+
+        for i, node in enumerate(lane_nodes):
+            nid = node.get("ID","")
+
+            # Arrow before node (skip for first node in first lane)
+            if rendered_ids:
+                # Find incoming arrow to this node
+                incoming = next((a for a in arrows if a.get("TO") == nid), None)
+                arrow_label = incoming.get("LABEL","") if incoming else ""
+                arrow_color = incoming.get("COLOR","blue") if incoming else "blue"
+                _draw_arrow(arrow_label, arrow_color)
+
+            _draw_node(node)
+            rendered_ids.add(nid)
+
+            # If this is a decision node, show YES/NO branches inline
+            if node.get("TYPE") == "diamond":
+                branches = arrow_map.get(nid, [])
+                if branches:
+                    p = doc.add_paragraph()
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    p.paragraph_format.space_before = Pt(2)
+                    p.paragraph_format.space_after  = Pt(2)
+                    for bi, branch in enumerate(branches):
+                        lbl   = branch.get("LABEL","")
+                        bcolor_key = branch.get("COLOR","blue")
+                        bcolor = {"blue": C["MBLUE"], "green": C["DKGREEN"],
+                                  "red": C["ACCENT"]}.get(bcolor_key, C["MBLUE"])
+                        to_id  = branch.get("TO","")
+                        to_node = next((n for n in nodes if n.get("ID") == to_id), None)
+                        to_label = to_node.get("LABEL","").replace("\\n"," ") if to_node else to_id
+                        separator = "     |     " if bi > 0 else ""
+                        run = p.add_run(f"{separator}{lbl} → {to_label}")
+                        run.font.name = FONT; run.font.size = Pt(10)
+                        run.font.bold = True; run.font.color.rgb = bcolor
+
+    doc.add_page_break()
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
