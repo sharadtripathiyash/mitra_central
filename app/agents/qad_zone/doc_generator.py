@@ -755,9 +755,13 @@ def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
     except ImportError:
         return
 
-    lanes  = FC.get("LANES",  [])
-    nodes  = FC.get("NODES",  [])
-    arrows = FC.get("ARROWS", [])
+    # Filter out any instruction strings the LLM may have left in NODES/ARROWS
+    lanes  = [l for l in (FC.get("LANES",  []) or []) if isinstance(l, dict)]
+    nodes  = [n for n in (FC.get("NODES",  []) or []) if isinstance(n, dict) and n.get("ID")]
+    arrows = [a for a in (FC.get("ARROWS", []) or []) if isinstance(a, dict) and a.get("FROM")]
+
+    if not nodes:
+        return
 
     W, H = 1400, 870
     n_lanes = len(lanes) if lanes else 1

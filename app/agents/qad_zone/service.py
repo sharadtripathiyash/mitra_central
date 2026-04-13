@@ -342,130 +342,164 @@ Extract ONLY what you can find in the code. Omit keys with no evidence."""
     # ── PASS 2: Generate full documentation JSON from extracted facts ─────────
     await send_status(ws, "Pass 2/2 — Building full documentation structure...")
 
-    pass2_system = """You are a QAD ERP technical writer producing corporate-quality documentation.
-You are given pre-extracted facts from code analysis. Use ONLY these facts to populate the documentation.
+    pass2_system = """You are a senior QAD ERP technical writer producing a comprehensive corporate Word document.
+You are given pre-extracted facts from source code analysis. Transform these facts into rich, detailed documentation.
 Return ONLY valid JSON — no markdown fences, no preamble, no extra text.
-Be verbose and detailed — write full sentences and paragraphs, not short phrases."""
+VERBOSITY RULES (strictly enforced):
+- Every PARA / INTRO_PARA field must be AT LEAST 4-6 full sentences.
+- Every PROG_PURPOSE must be AT LEAST 3-4 full sentences describing what the program does, why it exists, and how it fits the system.
+- Every logic step must be a complete sentence describing exactly what happens.
+- Every table row must be fully populated — no empty cells.
+- Boolean SHOW fields must be the JSON boolean true or false (not strings).
+- FLOWCHART must always be generated using the program flow data available in the facts."""
 
-    pass2_prompt = f"""Using the extracted code facts below, produce the complete documentation JSON.
+    pass2_prompt = f"""Transform the extracted QAD code facts below into a complete, verbose documentation JSON.
 
 EXTRACTED FACTS:
 {raw1}
 
-Rules:
-- Use ONLY information present in the facts above.
-- Omit any key whose value is not supported by the facts.
-- Write full descriptive paragraphs for PARA fields (3-5 sentences minimum each).
-- Write complete detailed steps for logic, not just keywords.
-- For FLOWCHART: set SHOW to true and populate LANES/NODES/ARROWS if flowchart_lanes and flowchart_nodes exist in facts.
-- For QUICK_REFERENCE tables: set SHOW to true only if the facts contain relevant data.
+CRITICAL INSTRUCTIONS:
+1. Every paragraph field: write 4-6 full, detailed sentences — never a single short sentence.
+2. Every program purpose: explain what the program does, what tables it reads/writes, what the user sees, and its role in the overall system.
+3. Every logic step: write as a complete action sentence (e.g. "The program validates that the site code entered exists in the site master table and displays an error if not found.").
+4. FLOWCHART: ALWAYS set SHOW to true and generate a complete flowchart by synthesizing facts.programs, facts.workflow_phases, and facts.call_flow. Create one LANE per business role or phase (e.g. User, Authorization, Processing, Database). Create one NODE per program or decision point. Create ARROWS following the call flow. Use dark_blue for main programs, yellow for decision diamonds, green for end/success nodes, red for error/denial nodes.
+5. QUICK_REFERENCE: set SHOW to true for any table where facts contain matching data (transaction_types → TRANSACTION_TYPE_TABLE, auth_groups → AUTH_GROUP_TABLE, include_files → INCLUDE_FILES_TABLE).
+6. APPROVAL_WORKFLOW: set SHOW to true if facts.approval_workflow.exists is true.
+7. All boolean SHOW values must be true or false (JSON booleans, not strings).
 
-Return ONLY valid JSON with this exact structure:
+Return ONLY valid JSON:
 
 {{
   "TITLE_PAGE": {{
-    "SYSTEM_NAME": "from facts.system_name",
-    "SYSTEM_FULL_NAME": "from facts.system_full_name",
-    "PLATFORM": "from facts.platform",
-    "MODULE": "from facts.module",
-    "VERSION": "from facts.version — omit if not in facts",
-    "ORIGINAL_AUTHOR": "from facts.original_author — omit if not in facts",
-    "LAST_MODIFIED_BY": "from facts.last_modified_by — omit if not in facts",
-    "TOTAL_PROGRAMS": "from facts.total_programs",
+    "SYSTEM_NAME": "{facts.get('system_name', '')}",
+    "SYSTEM_FULL_NAME": "{facts.get('system_full_name', '')}",
+    "PLATFORM": "{facts.get('platform', 'QAD ERP | Progress 4GL / OpenEdge')}",
+    "MODULE": "{facts.get('module', '')}",
+    "VERSION": "include only if in facts",
+    "ORIGINAL_AUTHOR": "include only if in facts",
+    "LAST_MODIFIED_BY": "include only if in facts",
+    "TOTAL_PROGRAMS": "{facts.get('total_programs', '')}",
     "DOCUMENT_DATE": "AUTO"
   }},
   "EXECUTIVE_SUMMARY": {{
-    "PARA_1": "Detailed paragraph from facts.business_purpose — expand to 4-5 sentences",
-    "PARA_2": "Detailed paragraph from facts.why_custom — expand to 4-5 sentences",
-    "KEY_CAPABILITIES": ["from facts.capabilities — each as a full sentence"],
+    "PARA_1": "4-6 sentence paragraph: what this system does, what business problem it solves, what transaction types it handles, who uses it, and what the key outcomes are. Derived from facts.business_purpose.",
+    "PARA_2": "4-6 sentence paragraph: why standard QAD is insufficient, what gap this fills, what the custom logic adds, and how it integrates with standard QAD. Derived from facts.why_custom.",
+    "KEY_CAPABILITIES": [
+      "Each capability as a complete descriptive sentence — from facts.capabilities"
+    ],
     "COMPARISON_TABLE": {{
       "headers": ["Feature", "Standard QAD", "This Custom System"],
-      "rows": [["feature", "standard behavior", "custom behavior"]]
+      "rows": [
+        ["one row per key differentiating feature found in facts.standard_qad_comparison"]
+      ]
     }}
   }},
   "ARCHITECTURE": {{
-    "INTRO_PARA": "Detailed paragraph from facts.architecture_overview — expand to 4-5 sentences",
+    "INTRO_PARA": "4-6 sentence paragraph: how the system is structured, what the entry point program is, how programs call each other, what shared variables are used, and how the system is deployed. From facts.architecture_overview.",
     "PROGRAM_HIERARCHY_TABLE": {{
       "headers": ["Program", "Type", "Role", "Called By", "Calls"],
-      "rows": [["from facts.programs — one row per program"]]
+      "rows": [
+        ["one row per program in facts.programs — use exact program names, types, roles, callers, callees"]
+      ]
     }},
     "SHARED_VARIABLES_TABLE": {{
       "headers": ["Shared Variable", "Data Type", "Purpose"],
-      "rows": [["from facts.shared_variables"]]
+      "rows": [
+        ["one row per variable in facts.shared_variables"]
+      ]
     }}
   }},
   "DATABASE_TABLES": [
     {{
-      "TABLE_NAME": "from facts.database_tables[n].name",
+      "TABLE_NAME": "exact table name from facts.database_tables[n].name",
       "TABLE_SUBTITLE": "from facts.database_tables[n].subtitle",
-      "TABLE_DESCRIPTION": "from facts.database_tables[n].description",
+      "TABLE_DESCRIPTION": "from facts.database_tables[n].description — expand to 2-3 sentences",
       "TABLE_FIELDS": {{
         "headers": ["Field", "Type / Format", "Description"],
-        "rows": [["field", "type", "desc"]]
+        "rows": [
+          ["one row per field in facts.database_tables[n].fields — field name, type, full description"]
+        ]
       }},
       "TABLE_UNIQUE_KEY": "from facts.database_tables[n].unique_key",
-      "TABLE_NOTE": "from facts.database_tables[n].notes — omit if empty"
+      "TABLE_NOTE": "from facts.database_tables[n].notes — include only if non-empty"
     }}
   ],
   "PROGRAM_ANALYSIS": [
     {{
-      "PROG_NAME": "from facts.programs[n].name",
-      "PROG_VERSION_INFO": "from facts.programs[n].version_comment — omit if not in facts",
-      "PROG_PURPOSE": "Detailed paragraph from facts.programs[n].role — expand to 3-4 sentences",
-      "PROG_CALLED_BY": "from facts.programs[n].called_by — omit if not in facts",
-      "PROG_CALLS": ["from facts.programs[n].calls"],
-      "PROG_INCLUDE_FILES": ["from facts.programs[n].include_files"],
+      "PROG_NAME": "exact filename from facts.programs[n].name",
+      "PROG_VERSION_INFO": "from facts.programs[n].version_comment — omit key if absent",
+      "PROG_PURPOSE": "3-4 sentence paragraph: what this program does, what tables it reads and writes, what the user interface looks like (if applicable), and its role in the overall system.",
+      "PROG_CALLED_BY": "from facts.programs[n].called_by — omit key if absent",
+      "PROG_CALLS": ["every program this calls from facts.programs[n].calls"],
+      "PROG_INCLUDE_FILES": ["every include file from facts.programs[n].include_files"],
       "PROG_SCREEN_LAYOUT": {{
-        "FRAME_NAME": "from facts.programs[n].frame_name",
+        "FRAME_NAME": "from facts.programs[n].frame_name — omit whole block if no UI",
         "headers": ["Field", "Label", "Editable When"],
-        "rows": [["field", "label", "condition"]]
+        "rows": [["one row per screen field from facts.programs[n].screen_fields"]]
       }},
-      "PROG_LOGIC_STEPS": ["from facts.programs[n].logic_steps — detailed steps"],
-      "PROG_VALIDATIONS": ["from facts.programs[n].validations"],
-      "PROG_TRIGGERS": ["from facts.programs[n].triggers"],
+      "PROG_LOGIC_STEPS": [
+        "Each step as a full sentence describing exactly what the program does at that point — from facts.programs[n].logic_steps"
+      ],
+      "PROG_VALIDATIONS": [
+        "Each validation as a complete sentence — from facts.programs[n].validations"
+      ],
+      "PROG_TRIGGERS": [
+        "Each trigger as a complete sentence — from facts.programs[n].triggers"
+      ],
       "PROG_SPECIAL_TABLES": {{"SHOW": false, "headers": [], "rows": []}},
       "PROG_EXTRA_SECTION": {{"SHOW": false, "TITLE": "", "CONTENT_TYPE": "para", "PARA": "", "BULLETS": [], "TABLE": {{"headers": [], "rows": []}}}}
     }}
   ],
   "WORKFLOW": {{
-    "INTRO_PARA": "Detailed paragraph describing the full business workflow lifecycle — 4-5 sentences",
+    "INTRO_PARA": "4-6 sentence paragraph describing the complete business workflow from start to finish: who initiates it, what phases it goes through, what approvals are required, what transactions are posted, and what the end state is.",
     "PHASES_TABLE": {{
       "headers": ["Phase", "Action", "Program", "Key Validations", "Table Updates"],
-      "rows": [["from facts.workflow_phases"]]
+      "rows": [
+        ["one row per phase from facts.workflow_phases — all 5 columns fully populated"]
+      ]
     }},
-    "INTERNAL_CALL_FLOW": ["from facts.call_flow — preserve indentation"],
+    "INTERNAL_CALL_FLOW": [
+      "lines from facts.call_flow — preserve exact indentation with spaces to show hierarchy"
+    ],
     "APPROVAL_WORKFLOW": {{
-      "SHOW": "true if facts.approval_workflow.exists else false",
-      "STEPS": ["from facts.approval_workflow.steps"],
-      "NOTE": "from facts.approval_workflow.note"
+      "SHOW": true,
+      "STEPS": ["each approval step as a complete sentence from facts.approval_workflow.steps"],
+      "NOTE": "from facts.approval_workflow.note — omit key if absent"
     }},
     "DELETE_RULES_TABLE": {{
       "headers": ["What", "When Allowed", "When Blocked"],
-      "rows": [["from facts.delete_rules"]]
+      "rows": [["one row per rule from facts.delete_rules"]]
     }}
   }},
   "SETUP_INSTRUCTIONS": {{
-    "PREREQUISITES": ["from facts.prerequisites"],
+    "PREREQUISITES": ["each prerequisite as a complete sentence from facts.prerequisites"],
     "STEPS": [
       {{
-        "STEP_NUMBER": "from facts.setup_steps[n].number",
-        "STEP_TITLE": "from facts.setup_steps[n].title",
-        "STEP_DESCRIPTION": "from facts.setup_steps[n].description",
-        "STEP_ITEMS": ["from facts.setup_steps[n].items"],
-        "STEP_CODE": ["from facts.setup_steps[n].code_lines"]
+        "STEP_NUMBER": "1",
+        "STEP_TITLE": "Deploy Programs",
+        "STEP_DESCRIPTION": "2-3 sentence description of what this step involves.",
+        "STEP_ITEMS": ["step item 1", "step item 2"],
+        "STEP_CODE": ["code or command line if applicable"]
+      }},
+      {{
+        "STEP_NUMBER": "2",
+        "STEP_TITLE": "Initialise Control Records",
+        "STEP_DESCRIPTION": "2-3 sentence description.",
+        "STEP_ITEMS": ["step item"],
+        "STEP_CODE": ["CREATE table. ASSIGN field = value."]
       }}
     ],
     "MENU_TABLE": {{
-      "SHOW": "true if facts.menu_items exists and non-empty",
+      "SHOW": true,
       "headers": ["Menu Option", "Program", "Description"],
-      "rows": [["from facts.menu_items"]]
+      "rows": [["one row per menu item from facts.menu_items — if absent, generate likely menu paths from program names"]]
     }},
-    "TEST_STEPS": ["from facts.test_steps"]
+    "TEST_STEPS": ["each test step as a complete sentence from facts.test_steps — if absent, generate reasonable UAT steps based on the system's purpose"]
   }},
   "ERROR_MESSAGES": {{
     "TABLE": {{
       "headers": ["Error Message / Code", "Triggering Condition", "Resolution"],
-      "rows": [["from facts.error_messages"]]
+      "rows": [["one row per error from facts.error_messages — all 3 columns populated"]]
     }}
   }},
   "CUSTOMIZATION_HISTORY": [
@@ -474,58 +508,67 @@ Return ONLY valid JSON with this exact structure:
       "ECO_TITLE": "from facts.eco_history[n].title",
       "ECO_AUTHOR": "from facts.eco_history[n].author",
       "ECO_DATE": "from facts.eco_history[n].date",
-      "ECO_CHANGES": ["from facts.eco_history[n].changes"]
+      "ECO_CHANGES": ["each change as a complete sentence"]
     }}
   ],
   "QUICK_REFERENCE": {{
     "TRANSACTION_TYPE_TABLE": {{
-      "SHOW": "true if facts.transaction_types exists and non-empty",
+      "SHOW": true,
       "headers": ["Trans Type", "Code Value", "Transaction String", "Program Used", "Effect on Inventory"],
-      "rows": [["from facts.transaction_types"]]
+      "rows": [["one row per transaction type from facts.transaction_types"]]
     }},
     "AUTH_GROUP_TABLE": {{
-      "SHOW": "true if facts.auth_groups exists and non-empty",
+      "SHOW": true,
       "headers": ["Action", "Group Field", "Where Stored"],
-      "rows": [["from facts.auth_groups"]]
+      "rows": [["one row per auth group from facts.auth_groups — if absent infer from programs that do authorization checks"]]
     }},
     "INCLUDE_FILES_TABLE": {{
-      "SHOW": "true if facts.include_files exists and non-empty",
+      "SHOW": true,
       "headers": ["Include File", "Purpose"],
-      "rows": [["from facts.include_files"]]
+      "rows": [["one row per include file from facts.include_files"]]
     }},
     "LOT_SERIAL_TABLE": {{"SHOW": false, "headers": [], "rows": []}},
     "CUSTOM_TABLE_1": {{"SHOW": false, "TITLE": "", "headers": [], "rows": []}}
   }},
   "FLOWCHART": {{
-    "SHOW": "true if facts.flowchart_nodes is non-empty",
+    "SHOW": true,
     "LANES": [
       {{
-        "LANE_ID": "from facts.flowchart_lanes — split id:label:color",
-        "LANE_LABEL": "label part",
-        "LANE_COLOR": "color part"
+        "LANE_ID": "user",
+        "LANE_LABEL": "USER\\nINPUT",
+        "LANE_COLOR": "light_blue"
+      }},
+      {{
+        "LANE_ID": "auth",
+        "LANE_LABEL": "AUTHORIZATION\\nCHECK",
+        "LANE_COLOR": "dark_blue"
+      }},
+      {{
+        "LANE_ID": "processing",
+        "LANE_LABEL": "PROCESSING\\nLOGIC",
+        "LANE_COLOR": "light_blue"
+      }},
+      {{
+        "LANE_ID": "database",
+        "LANE_LABEL": "DATABASE\\nOPERATIONS",
+        "LANE_COLOR": "green"
       }}
     ],
     "NODES": [
-      {{
-        "ID": "from facts.flowchart_nodes[n].id",
-        "TYPE": "from facts.flowchart_nodes[n].type",
-        "LANE": "from facts.flowchart_nodes[n].lane",
-        "LABEL": "from facts.flowchart_nodes[n].label",
-        "COLOR": "from facts.flowchart_nodes[n].color"
-      }}
+      "Generate one node per major program or decision point from facts.programs and facts.workflow_phases.",
+      "Use TYPE oval for START/END, box for programs, diamond for decisions.",
+      "Assign each node to the most appropriate LANE based on its function.",
+      "Use dark_blue for main programs, light_blue for sub-programs, yellow for decisions, green for DB/save operations, red for error/denied nodes.",
+      "Example node: {{\\\"ID\\\": \\\"start\\\", \\\"TYPE\\\": \\\"oval\\\", \\\"LANE\\\": \\\"user\\\", \\\"LABEL\\\": \\\"START\\\", \\\"COLOR\\\": \\\"dark_blue\\\"}}"
     ],
     "ARROWS": [
-      {{
-        "FROM": "from facts.flowchart_arrows[n].from",
-        "TO": "from facts.flowchart_arrows[n].to",
-        "LABEL": "from facts.flowchart_arrows[n].label",
-        "COLOR": "from facts.flowchart_arrows[n].color"
-      }}
+      "Generate arrows following facts.call_flow and facts.workflow_phases.",
+      "Example arrow: {{\\\"FROM\\\": \\\"node1\\\", \\\"TO\\\": \\\"node2\\\", \\\"LABEL\\\": \\\"YES\\\", \\\"COLOR\\\": \\\"green\\\"}}"
     ]
   }}
 }}
 
-Be thorough and verbose. Write complete sentences. Use all available facts."""
+OUTPUT REQUIREMENT: The JSON must be at least 15,000 characters long. Every array must have real entries. Every paragraph must be 4+ sentences."""
 
     logger.info("PASS2 prompt length: %d chars", len(pass2_prompt))
     raw = await openai_chat(pass2_system, pass2_prompt, max_tokens=16000)
