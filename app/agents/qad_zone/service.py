@@ -211,246 +211,332 @@ async def _handle_documentation(ws: WebSocket, question: str, session_id: str,
         await send_status(ws, f"Loading code from module: {module or 'all'}...")
         code = load_module_code(module) if module else load_all_code_summary()
 
-    await send_status(ws, "Analysing code and generating document structure...")
+    # ── PASS 1: Extract structured facts from code ────────────────────────────
+    await send_status(ws, "Pass 1/2 — Reading and extracting code facts...")
 
-    system = """You are a QAD ERP technical writer producing corporate-quality documentation.
-Always return valid JSON only — no markdown fences, no preamble, no extra text.
-CRITICAL: Only include fields you can populate with real data from the code.
-Omit any field, array, or sub-object entirely if the code does not provide enough information to fill it.
-Never use placeholder text like [NAME], [VALUE], or example/template values — if you do not know it, leave the key out."""
+    pass1_system = """You are a senior QAD ERP Progress 4GL code analyst.
+Extract structured technical facts from the source code provided.
+Return ONLY valid JSON — no markdown fences, no preamble, no extra text."""
 
-    prompt = f"""Analyse the following QAD Progress 4GL custom program code and produce structured documentation data.
+    pass1_prompt = f"""Read the following QAD Progress 4GL source code carefully and extract every technical fact you can find.
 
 USER REQUEST: {question}
 
-CODE:
+SOURCE CODE:
 {code}
 
-Return ONLY valid JSON matching the structure below. Rules:
-- Omit any key whose value you cannot determine from the actual code.
-- For arrays: omit the key entirely rather than returning an empty array [].
-- For strings: omit the key entirely rather than returning "", "N/A", or placeholder text.
-- For objects with a "SHOW" key: set SHOW to false and omit data arrays if not applicable.
-- Populate every field you DO include with real, specific data from the code.
+Return ONLY valid JSON with this exact structure — populate every field you can find evidence for in the code:
+
+{{
+  "system_name": "Short code/abbreviation (e.g. MRN, DOA) from file names or comments",
+  "system_full_name": "Full descriptive system name from comments or screen titles",
+  "platform": "QAD ERP | Progress 4GL / OpenEdge",
+  "module": "Business module (e.g. Inventory Control, Purchasing, Finance)",
+  "version": "Version string from comments if present",
+  "original_author": "Author name and date from file header comments",
+  "last_modified_by": "Last modifier name and ECO code from comments",
+  "total_programs": "Total count of .p and .i files in the code",
+  "business_purpose": "2-3 sentences: what business problem this system solves",
+  "why_custom": "2-3 sentences: why standard QAD is insufficient, what gap this fills",
+  "capabilities": ["capability 1", "capability 2", "capability 3"],
+  "standard_qad_comparison": [
+    {{"feature": "feature name", "standard": "what standard QAD does", "custom": "what this system does differently"}}
+  ],
+  "architecture_overview": "2-3 sentences on overall architecture and entry point program",
+  "programs": [
+    {{
+      "name": "exact_filename.p",
+      "type": "Maintenance / Inquiry / Report / Batch / Include / Trigger",
+      "role": "what this program does in one sentence",
+      "called_by": "which program or menu calls this",
+      "calls": ["list", "of", "programs", "this", "calls"],
+      "include_files": ["include1.i", "include2.i"],
+      "frame_name": "Frame name if UI program",
+      "screen_fields": [
+        {{"field": "table.field", "label": "screen label", "editable": "Always / condition"}}
+      ],
+      "logic_steps": ["Step 1: what happens", "Step 2: what happens"],
+      "validations": ["validation rule 1", "validation rule 2"],
+      "triggers": ["ON WRITE OF table: what it does"],
+      "version_comment": "Created by / modified by line from file header"
+    }}
+  ],
+  "shared_variables": [
+    {{"name": "variable_name", "type": "data type", "purpose": "what it carries between programs"}}
+  ],
+  "database_tables": [
+    {{
+      "name": "table_name",
+      "subtitle": "Master / Detail / Header / Control / History / Audit",
+      "description": "one sentence on what this table stores",
+      "fields": [
+        {{"name": "field_name", "type": "Character/Integer/Decimal/Logical/Date", "desc": "field purpose"}}
+      ],
+      "unique_key": "domain + field1 + field2",
+      "notes": "any important notes about this table"
+    }}
+  ],
+  "workflow_phases": [
+    {{"phase": "phase name", "action": "what happens", "program": "program.p", "validations": "checks done", "table_updates": "tables written"}}
+  ],
+  "call_flow": ["line 1 of indented call flow", "  line 2 indented under parent"],
+  "approval_workflow": {{
+    "exists": true,
+    "steps": ["step 1", "step 2"],
+    "note": "any special note about approvals"
+  }},
+  "delete_rules": [
+    {{"what": "what can be deleted", "allowed_when": "condition", "blocked_when": "condition"}}
+  ],
+  "prerequisites": ["prerequisite 1", "prerequisite 2"],
+  "setup_steps": [
+    {{
+      "number": "1",
+      "title": "step title",
+      "description": "what to do",
+      "items": ["item 1", "item 2"],
+      "code_lines": ["code line 1", "code line 2"]
+    }}
+  ],
+  "menu_items": [
+    {{"option": "menu label", "program": "program.p", "description": "what it does"}}
+  ],
+  "test_steps": ["test step 1", "test step 2"],
+  "error_messages": [
+    {{"message": "exact error text or msg number", "condition": "what triggers it", "resolution": "how to fix"}}
+  ],
+  "eco_history": [
+    {{"id": "ECO001", "title": "change title", "author": "name", "date": "Month Year", "changes": ["change 1", "change 2"]}}
+  ],
+  "transaction_types": [
+    {{"type": "type name", "code": "code value", "string": "transaction string", "program": "program.p", "effect": "inventory effect"}}
+  ],
+  "auth_groups": [
+    {{"action": "action name", "field": "group field name", "stored_in": "table.field"}}
+  ],
+  "include_files": [
+    {{"name": "{{include.i}}", "purpose": "what it provides"}}
+  ],
+  "flowchart_lanes": ["lane1_id:LANE LABEL:dark_blue", "lane2_id:LANE LABEL:light_blue"],
+  "flowchart_nodes": [
+    {{"id": "node_id", "type": "oval/box/diamond", "lane": "lane_id", "label": "display label", "color": "dark_blue/light_blue/green/yellow/red"}}
+  ],
+  "flowchart_arrows": [
+    {{"from": "node_id", "to": "node_id", "label": "YES/NO or empty", "color": "blue/green/red"}}
+  ]
+}}
+
+Extract ONLY what you can find in the code. Omit keys with no evidence."""
+
+    logger.info("PASS1 prompt length: %d chars | code length: %d chars", len(pass1_prompt), len(code))
+    raw1 = await openai_chat(pass1_system, pass1_prompt, max_tokens=8000)
+    logger.info("PASS1 raw response length: %d chars", len(raw1))
+
+    try:
+        facts = parse_json_response(raw1)
+        logger.info("PASS1 extracted keys: %s", list(facts.keys()))
+    except Exception:
+        logger.warning("PASS1 failed to parse — falling back to single-pass")
+        facts = {}
+
+    # ── PASS 2: Generate full documentation JSON from extracted facts ─────────
+    await send_status(ws, "Pass 2/2 — Building full documentation structure...")
+
+    pass2_system = """You are a QAD ERP technical writer producing corporate-quality documentation.
+You are given pre-extracted facts from code analysis. Use ONLY these facts to populate the documentation.
+Return ONLY valid JSON — no markdown fences, no preamble, no extra text.
+Be verbose and detailed — write full sentences and paragraphs, not short phrases."""
+
+    pass2_prompt = f"""Using the extracted code facts below, produce the complete documentation JSON.
+
+EXTRACTED FACTS:
+{raw1}
+
+Rules:
+- Use ONLY information present in the facts above.
+- Omit any key whose value is not supported by the facts.
+- Write full descriptive paragraphs for PARA fields (3-5 sentences minimum each).
+- Write complete detailed steps for logic, not just keywords.
+- For FLOWCHART: set SHOW to true and populate LANES/NODES/ARROWS if flowchart_lanes and flowchart_nodes exist in facts.
+- For QUICK_REFERENCE tables: set SHOW to true only if the facts contain relevant data.
+
+Return ONLY valid JSON with this exact structure:
 
 {{
   "TITLE_PAGE": {{
-    "SYSTEM_NAME": "Short code / abbreviation of the system (e.g. DOA, EINV)",
-    "SYSTEM_FULL_NAME": "Full descriptive name of the system",
-    "PLATFORM": "QAD ERP | Progress 4GL / OpenEdge",
-    "MODULE": "e.g. Inventory Control / Purchasing / Finance",
-    "VERSION": "e.g. 9.0 Custom Build — if determinable from code comments",
-    "ORIGINAL_AUTHOR": "Name (Date) — from code comments if present",
-    "LAST_MODIFIED_BY": "Name (ECO: CODE) — from code comments if present",
-    "TOTAL_PROGRAMS": "Count of .p and .i files found",
+    "SYSTEM_NAME": "from facts.system_name",
+    "SYSTEM_FULL_NAME": "from facts.system_full_name",
+    "PLATFORM": "from facts.platform",
+    "MODULE": "from facts.module",
+    "VERSION": "from facts.version — omit if not in facts",
+    "ORIGINAL_AUTHOR": "from facts.original_author — omit if not in facts",
+    "LAST_MODIFIED_BY": "from facts.last_modified_by — omit if not in facts",
+    "TOTAL_PROGRAMS": "from facts.total_programs",
     "DOCUMENT_DATE": "AUTO"
   }},
   "EXECUTIVE_SUMMARY": {{
-    "PARA_1": "One paragraph describing what this system does, what business problem it solves, and what transaction types it handles.",
-    "PARA_2": "One paragraph describing how this differs from standard QAD functionality and why a custom solution was needed.",
-    "KEY_CAPABILITIES": [
-      "Capability derived from code — business language"
-    ],
+    "PARA_1": "Detailed paragraph from facts.business_purpose — expand to 4-5 sentences",
+    "PARA_2": "Detailed paragraph from facts.why_custom — expand to 4-5 sentences",
+    "KEY_CAPABILITIES": ["from facts.capabilities — each as a full sentence"],
     "COMPARISON_TABLE": {{
       "headers": ["Feature", "Standard QAD", "This Custom System"],
-      "rows": [
-        ["Feature name from code", "Standard QAD behavior", "Custom system behavior"]
-      ]
+      "rows": [["feature", "standard behavior", "custom behavior"]]
     }}
   }},
   "ARCHITECTURE": {{
-    "INTRO_PARA": "Brief paragraph describing the overall architecture and entry point.",
+    "INTRO_PARA": "Detailed paragraph from facts.architecture_overview — expand to 4-5 sentences",
     "PROGRAM_HIERARCHY_TABLE": {{
       "headers": ["Program", "Type", "Role", "Called By", "Calls"],
-      "rows": [
-        ["program.p", "Maintenance / Report / Utility", "Description of role", "Caller or Menu", "Called programs"]
-      ]
+      "rows": [["from facts.programs — one row per program"]]
     }},
     "SHARED_VARIABLES_TABLE": {{
       "headers": ["Shared Variable", "Data Type", "Purpose"],
-      "rows": [
-        ["variable_name", "like xx_field or as integer", "What this variable carries"]
-      ]
+      "rows": [["from facts.shared_variables"]]
     }}
   }},
   "DATABASE_TABLES": [
     {{
-      "TABLE_NAME": "xx_mstr",
-      "TABLE_SUBTITLE": "Header / Master / Detail / Control / History",
-      "TABLE_DESCRIPTION": "One sentence describing what this table stores.",
+      "TABLE_NAME": "from facts.database_tables[n].name",
+      "TABLE_SUBTITLE": "from facts.database_tables[n].subtitle",
+      "TABLE_DESCRIPTION": "from facts.database_tables[n].description",
       "TABLE_FIELDS": {{
         "headers": ["Field", "Type / Format", "Description"],
-        "rows": [
-          ["field_name", "Character / Integer / Decimal / Logical / Date", "Field description"]
-        ]
+        "rows": [["field", "type", "desc"]]
       }},
-      "TABLE_UNIQUE_KEY": "domain + field1 + field2",
-      "TABLE_NOTE": "Warning or important note if applicable — omit if none",
-      "TABLE_INFO": "Informational note if applicable — omit if none"
+      "TABLE_UNIQUE_KEY": "from facts.database_tables[n].unique_key",
+      "TABLE_NOTE": "from facts.database_tables[n].notes — omit if empty"
     }}
   ],
   "PROGRAM_ANALYSIS": [
     {{
-      "PROG_NAME": "program.p",
-      "PROG_VERSION_INFO": "Created by: Name  Date: DD/MM/YY  Last Modified: Name (ECO) — from code comments",
-      "PROG_PURPOSE": "Paragraph describing what this program does.",
-      "PROG_CALLED_BY": "program_name.p or Menu",
-      "PROG_CALLS": ["sub_program1.p", "sub_program2.p"],
-      "PROG_INCLUDE_FILES": ["include1.i", "include2.i"],
+      "PROG_NAME": "from facts.programs[n].name",
+      "PROG_VERSION_INFO": "from facts.programs[n].version_comment — omit if not in facts",
+      "PROG_PURPOSE": "Detailed paragraph from facts.programs[n].role — expand to 3-4 sentences",
+      "PROG_CALLED_BY": "from facts.programs[n].called_by — omit if not in facts",
+      "PROG_CALLS": ["from facts.programs[n].calls"],
+      "PROG_INCLUDE_FILES": ["from facts.programs[n].include_files"],
       "PROG_SCREEN_LAYOUT": {{
-        "FRAME_NAME": "Frame A / Frame B / Frame C",
+        "FRAME_NAME": "from facts.programs[n].frame_name",
         "headers": ["Field", "Label", "Editable When"],
-        "rows": [
-          ["field_name", "Screen Label", "Always / Create mode / condition"]
-        ]
+        "rows": [["field", "label", "condition"]]
       }},
-      "PROG_LOGIC_STEPS": [
-        "Step 1: description",
-        "Step 2: description"
-      ],
-      "PROG_VALIDATIONS": [
-        "Validation rule derived from code"
-      ],
-      "PROG_TRIGGERS": [
-        "ON WRITE OF table_name: description"
-      ],
-      "PROG_SPECIAL_TABLES": {{
-        "SHOW": false,
-        "headers": ["Mode", "Condition", "Formula"],
-        "rows": []
-      }},
-      "PROG_EXTRA_SECTION": {{
-        "SHOW": false,
-        "TITLE": "Additional Section Title",
-        "CONTENT_TYPE": "table",
-        "PARA": "",
-        "BULLETS": [],
-        "TABLE": {{ "headers": [], "rows": [] }}
-      }}
+      "PROG_LOGIC_STEPS": ["from facts.programs[n].logic_steps — detailed steps"],
+      "PROG_VALIDATIONS": ["from facts.programs[n].validations"],
+      "PROG_TRIGGERS": ["from facts.programs[n].triggers"],
+      "PROG_SPECIAL_TABLES": {{"SHOW": false, "headers": [], "rows": []}},
+      "PROG_EXTRA_SECTION": {{"SHOW": false, "TITLE": "", "CONTENT_TYPE": "para", "PARA": "", "BULLETS": [], "TABLE": {{"headers": [], "rows": []}}}}
     }}
   ],
   "WORKFLOW": {{
-    "INTRO_PARA": "Brief description of the business workflow lifecycle.",
+    "INTRO_PARA": "Detailed paragraph describing the full business workflow lifecycle — 4-5 sentences",
     "PHASES_TABLE": {{
       "headers": ["Phase", "Action", "Program", "Key Validations", "Table Updates"],
-      "rows": [
-        ["Phase Name", "Action description", "program.p", "Validation checks", "Tables written"]
-      ]
+      "rows": [["from facts.workflow_phases"]]
     }},
-    "INTERNAL_CALL_FLOW": [
-      "User navigates to root_program.p",
-      "  root_program.p: enter key fields"
-    ],
+    "INTERNAL_CALL_FLOW": ["from facts.call_flow — preserve indentation"],
     "APPROVAL_WORKFLOW": {{
-      "SHOW": false,
-      "STEPS": [],
-      "NOTE": ""
+      "SHOW": "true if facts.approval_workflow.exists else false",
+      "STEPS": ["from facts.approval_workflow.steps"],
+      "NOTE": "from facts.approval_workflow.note"
     }},
     "DELETE_RULES_TABLE": {{
       "headers": ["What", "When Allowed", "When Blocked"],
-      "rows": [
-        ["Table / Record", "Condition when delete is permitted", "Condition when blocked"]
-      ]
+      "rows": [["from facts.delete_rules"]]
     }}
   }},
   "SETUP_INSTRUCTIONS": {{
-    "PREREQUISITES": [
-      "Prerequisite from code analysis"
-    ],
+    "PREREQUISITES": ["from facts.prerequisites"],
     "STEPS": [
       {{
-        "STEP_NUMBER": "1",
-        "STEP_TITLE": "Deploy Programs",
-        "STEP_DESCRIPTION": "Brief description of this step.",
-        "STEP_ITEMS": ["Step item derived from code"],
-        "STEP_CODE": ["/* code line */"]
+        "STEP_NUMBER": "from facts.setup_steps[n].number",
+        "STEP_TITLE": "from facts.setup_steps[n].title",
+        "STEP_DESCRIPTION": "from facts.setup_steps[n].description",
+        "STEP_ITEMS": ["from facts.setup_steps[n].items"],
+        "STEP_CODE": ["from facts.setup_steps[n].code_lines"]
       }}
     ],
     "MENU_TABLE": {{
-      "SHOW": false,
+      "SHOW": "true if facts.menu_items exists and non-empty",
       "headers": ["Menu Option", "Program", "Description"],
-      "rows": []
+      "rows": [["from facts.menu_items"]]
     }},
-    "TEST_STEPS": [
-      "Test step derived from code logic"
-    ]
-  }},
-  "QAD_NATIVE_COMPARISON": {{
-    "SHOW": false,
-    "NATIVE_DESCRIPTION_PARA": "",
-    "NATIVE_MODULES": [],
-    "NATIVE_SETUP_STEPS": [],
-    "DEPLOYMENT_DECISION_TABLE": {{ "headers": [], "rows": [] }}
+    "TEST_STEPS": ["from facts.test_steps"]
   }},
   "ERROR_MESSAGES": {{
     "TABLE": {{
       "headers": ["Error Message / Code", "Triggering Condition", "Resolution"],
-      "rows": [
-        ["Error message text", "What causes this error", "How to fix it"]
-      ]
+      "rows": [["from facts.error_messages"]]
     }}
   }},
   "CUSTOMIZATION_HISTORY": [
     {{
-      "ECO_ID": "ECO001",
-      "ECO_TITLE": "Brief title of this change",
-      "ECO_AUTHOR": "Developer Name",
-      "ECO_DATE": "Month Year",
-      "ECO_CHANGES": [
-        "Change description from code comments"
-      ]
+      "ECO_ID": "from facts.eco_history[n].id",
+      "ECO_TITLE": "from facts.eco_history[n].title",
+      "ECO_AUTHOR": "from facts.eco_history[n].author",
+      "ECO_DATE": "from facts.eco_history[n].date",
+      "ECO_CHANGES": ["from facts.eco_history[n].changes"]
     }}
   ],
   "QUICK_REFERENCE": {{
     "TRANSACTION_TYPE_TABLE": {{
-      "SHOW": false,
+      "SHOW": "true if facts.transaction_types exists and non-empty",
       "headers": ["Trans Type", "Code Value", "Transaction String", "Program Used", "Effect on Inventory"],
-      "rows": []
+      "rows": [["from facts.transaction_types"]]
     }},
     "AUTH_GROUP_TABLE": {{
-      "SHOW": false,
+      "SHOW": "true if facts.auth_groups exists and non-empty",
       "headers": ["Action", "Group Field", "Where Stored"],
-      "rows": []
+      "rows": [["from facts.auth_groups"]]
     }},
     "INCLUDE_FILES_TABLE": {{
-      "SHOW": false,
+      "SHOW": "true if facts.include_files exists and non-empty",
       "headers": ["Include File", "Purpose"],
-      "rows": []
+      "rows": [["from facts.include_files"]]
     }},
-    "LOT_SERIAL_TABLE": {{
-      "SHOW": false,
-      "headers": ["Code", "Meaning", "Used In"],
-      "rows": []
-    }},
-    "CUSTOM_TABLE_1": {{
-      "SHOW": false,
-      "TITLE": "",
-      "headers": [],
-      "rows": []
-    }}
+    "LOT_SERIAL_TABLE": {{"SHOW": false, "headers": [], "rows": []}},
+    "CUSTOM_TABLE_1": {{"SHOW": false, "TITLE": "", "headers": [], "rows": []}}
   }},
   "FLOWCHART": {{
-    "SHOW": false,
-    "LANES": [],
-    "NODES": [],
-    "ARROWS": []
+    "SHOW": "true if facts.flowchart_nodes is non-empty",
+    "LANES": [
+      {{
+        "LANE_ID": "from facts.flowchart_lanes — split id:label:color",
+        "LANE_LABEL": "label part",
+        "LANE_COLOR": "color part"
+      }}
+    ],
+    "NODES": [
+      {{
+        "ID": "from facts.flowchart_nodes[n].id",
+        "TYPE": "from facts.flowchart_nodes[n].type",
+        "LANE": "from facts.flowchart_nodes[n].lane",
+        "LABEL": "from facts.flowchart_nodes[n].label",
+        "COLOR": "from facts.flowchart_nodes[n].color"
+      }}
+    ],
+    "ARROWS": [
+      {{
+        "FROM": "from facts.flowchart_arrows[n].from",
+        "TO": "from facts.flowchart_arrows[n].to",
+        "LABEL": "from facts.flowchart_arrows[n].label",
+        "COLOR": "from facts.flowchart_arrows[n].color"
+      }}
+    ]
   }}
 }}
 
-Fill every included field with specific data from the code. Omit keys you cannot fill with real data.
-"""
+Be thorough and verbose. Write complete sentences. Use all available facts."""
 
-    logger.info("DOC prompt length: %d chars | code length: %d chars", len(prompt), len(code))
-    raw = await openai_chat(system, prompt, max_tokens=16000)
-    logger.info("DOC raw response length: %d chars", len(raw))
-    logger.info("DOC raw response (first 500): %s", raw[:500])
+    logger.info("PASS2 prompt length: %d chars", len(pass2_prompt))
+    raw = await openai_chat(pass2_system, pass2_prompt, max_tokens=16000)
+    logger.info("PASS2 raw response length: %d chars", len(raw))
 
     try:
         parsed = parse_json_response(raw)
-        logger.info("DOC parsed top-level keys: %s", list(parsed.keys()))
+        logger.info("PASS2 parsed top-level keys: %s", list(parsed.keys()))
     except Exception:
-        logger.warning("Failed to parse JSON from documentation LLM")
-        logger.warning("DOC raw response (full): %s", raw[:2000])
+        logger.warning("Failed to parse JSON from documentation LLM (pass 2)")
+        logger.warning("PASS2 raw response (first 2000): %s", raw[:2000])
         # Fallback: use title-based approach with raw content as a section
         title = question.replace("document", "").replace("documentation", "").strip().title() or "QAD Custom Module Documentation"
         doc_url = generate_document(
