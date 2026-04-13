@@ -440,12 +440,17 @@ Return ONLY valid JSON matching the structure below. Rules:
 Fill every included field with specific data from the code. Omit keys you cannot fill with real data.
 """
 
+    logger.info("DOC prompt length: %d chars | code length: %d chars", len(prompt), len(code))
     raw = await openai_chat(system, prompt, max_tokens=16000)
+    logger.info("DOC raw response length: %d chars", len(raw))
+    logger.info("DOC raw response (first 500): %s", raw[:500])
 
     try:
         parsed = parse_json_response(raw)
+        logger.info("DOC parsed top-level keys: %s", list(parsed.keys()))
     except Exception:
         logger.warning("Failed to parse JSON from documentation LLM")
+        logger.warning("DOC raw response (full): %s", raw[:2000])
         # Fallback: use title-based approach with raw content as a section
         title = question.replace("document", "").replace("documentation", "").strip().title() or "QAD Custom Module Documentation"
         doc_url = generate_document(
