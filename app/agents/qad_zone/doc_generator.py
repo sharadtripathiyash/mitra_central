@@ -741,160 +741,164 @@ def _build_end_page(doc: Document, system_name: str, full_name: str, doc_date: s
 
 # ── Flowchart (optional — requires cairosvg) ─────────────────────────────────
 
+def _hex(h: str):
+    """Convert hex string to RGB tuple."""
+    h = h.lstrip("#")
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+
 def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
-    """Render SVG flowchart as PNG and embed in document.
-    Silently skipped if FC.SHOW is false or cairosvg is unavailable.
+    """Render flowchart as PNG using Pillow (pure Python, no Cairo needed).
+    Silently skipped if SHOW is false or nodes are missing/invalid.
     """
     if not (FC and FC.get("SHOW")):
         return
-    if not (_has(FC.get("LANES")) and _has(FC.get("NODES"))):
-        return
 
-    try:
-        from svglib.svglib import svg2rlg       # noqa: F401 — presence check only
-        from reportlab.graphics import renderPM  # noqa: F401
-    except ImportError:
-        return
-
-    # Filter out any instruction strings the LLM may have left in NODES/ARROWS
-    lanes  = [l for l in (FC.get("LANES",  []) or []) if isinstance(l, dict)]
+    # Filter out any instruction strings the LLM may have left in arrays
+    lanes  = [l for l in (FC.get("LANES",  []) or []) if isinstance(l, dict) and l.get("LANE_ID")]
     nodes  = [n for n in (FC.get("NODES",  []) or []) if isinstance(n, dict) and n.get("ID")]
     arrows = [a for a in (FC.get("ARROWS", []) or []) if isinstance(a, dict) and a.get("FROM")]
 
     if not nodes:
         return
 
-    W, H = 1400, 870
-    n_lanes = len(lanes) if lanes else 1
-    LANE_W = W // n_lanes
-
-    COLORS = {
-        "dark_blue":   {"fill": "1F4E79", "text": "FFFFFF", "stroke": "1F4E79"},
-        "light_blue":  {"fill": "DEEAF1", "text": "1F4E79", "stroke": "2E75B6"},
-        "green":       {"fill": "375623", "text": "FFFFFF", "stroke": "375623"},
-        "light_green": {"fill": "E2EFDA", "text": "375623", "stroke": "70AD47"},
-        "red":         {"fill": "FCE4D6", "text": "C00000", "stroke": "C00000"},
-        "yellow":      {"fill": "FFF2CC", "text": "7D4E00", "stroke": "F4A800"},
-        "gray":        {"fill": "F2F2F2", "text": "404040", "stroke": "7F7F7F"},
-    }
-    LANE_BG = {"dark_blue": "F7FAFD", "light_blue": "EBF3FB", "green": "F0F7EE"}
-
-    lane_x: dict[str, int] = {l["LANE_ID"]: i * LANE_W for i, l in enumerate(lanes)}
-    lane_count: dict[str, int] = {l["LANE_ID"]: 0 for l in lanes}
-    node_pos: dict[str, dict] = {}
-    for n in nodes:
-        lx = lane_x.get(n.get("LANE", ""), 0)
-        idx = lane_count.get(n.get("LANE", ""), 0)
-        lane_count[n.get("LANE", "")] = idx + 1
-        node_pos[n["ID"]] = {"x": lx + LANE_W // 2, "y": 110 + idx * 100}
-
-    parts: list[str] = []
-    parts.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
-                 f'viewBox="0 0 {W} {H}" font-family="Arial,sans-serif">')
-    parts.append('<defs>')
-    for mid, col in [("aB", "1F4E79"), ("aG", "375623"), ("aC", "C00000"), ("aO", "F4A800")]:
-        parts.append(f'<marker id="{mid}" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
-                     f'<path d="M0,0 L0,8 L8,4 z" fill="#{col}"/></marker>')
-    parts.append('</defs>')
-    parts.append(f'<rect width="{W}" height="{H}" fill="#F7FAFD"/>')
-    parts.append(f'<rect width="{W}" height="46" fill="#1F4E79" rx="8"/>')
-    parts.append(f'<rect y="38" width="{W}" height="8" fill="#1F4E79"/>')
-    parts.append(f'<text x="{W//2}" y="30" text-anchor="middle" fill="white" '
-                 f'font-size="18" font-weight="bold">{system_name} — System Process Flow</text>')
-
-    for i, lane in enumerate(lanes):
-        lx = i * LANE_W
-        bg = LANE_BG.get(lane.get("LANE_COLOR", ""), "F7FAFD")
-        hdr_fill = {"light_blue": "2E75B6", "green": "375623"}.get(lane.get("LANE_COLOR", ""), "1F4E79")
-        parts.append(f'<rect x="{lx}" y="46" width="{LANE_W}" height="{H - 46}" fill="#{bg}"/>')
-        if i > 0:
-            parts.append(f'<line x1="{lx}" y1="46" x2="{lx}" y2="{H}" stroke="#C5D9EF" stroke-width="1.2"/>')
-        parts.append(f'<rect x="{lx}" y="46" width="{LANE_W}" height="30" fill="#{hdr_fill}"/>')
-        label_lines = lane.get("LANE_LABEL", "").split("\\n")
-        for j, ll in enumerate(label_lines):
-            dy = 58 + j * 14 if len(label_lines) > 1 else 65
-            parts.append(f'<text x="{lx + LANE_W // 2}" y="{dy}" text-anchor="middle" '
-                         f'fill="white" font-size="11" font-weight="bold">{ll}</text>')
-
-    for a in arrows:
-        frm = node_pos.get(a.get("FROM", ""))
-        to  = node_pos.get(a.get("TO", ""))
-        if not frm:
-            continue
-        tx = to["x"] if to else frm["x"] + 40
-        ty = to["y"] if to else frm["y"] + 30
-        col_map = {"red": ("aC", "#C00000"), "green": ("aG", "#375623")}
-        mid_id, stroke = col_map.get(a.get("COLOR", ""), ("aB", "#1F4E79"))
-        parts.append(f'<line x1="{frm["x"]}" y1="{frm["y"]}" x2="{tx}" y2="{ty}" '
-                     f'stroke="{stroke}" stroke-width="1.5" marker-end="url(#{mid_id})"/>')
-        if _has(a.get("LABEL")):
-            mx = (frm["x"] + tx) // 2 + 4
-            my = (frm["y"] + ty) // 2
-            parts.append(f'<text x="{mx}" y="{my}" fill="{stroke}" font-size="9">{a["LABEL"]}</text>')
-
-    NW, NH = LANE_W - 20, 36
-    for n in nodes:
-        pos = node_pos.get(n.get("ID", ""))
-        if not pos:
-            continue
-        col = COLORS.get(n.get("COLOR", ""), COLORS["dark_blue"])
-        label = n.get("LABEL", "").replace("{{SYSTEM_NAME}}", system_name)
-        label_lines = label.split("\\n")
-        nx, ny = pos["x"] - NW // 2, pos["y"] - NH // 2
-
-        if n.get("TYPE") == "oval":
-            parts.append(f'<ellipse cx="{pos["x"]}" cy="{pos["y"]}" rx="{NW // 2 - 10}" ry="18" '
-                         f'fill="#{col["fill"]}"/>')
-            parts.append(f'<text x="{pos["x"]}" y="{pos["y"] + 5}" text-anchor="middle" '
-                         f'fill="#{col["text"]}" font-size="13" font-weight="bold">{label}</text>')
-        elif n.get("TYPE") == "diamond":
-            dw, dh = NW // 2, 24
-            pts = (f"{pos['x']},{pos['y'] - dh} {pos['x'] + dw},{pos['y']} "
-                   f"{pos['x']},{pos['y'] + dh} {pos['x'] - dw},{pos['y']}")
-            parts.append(f'<polygon points="{pts}" fill="#{col["fill"]}" '
-                         f'stroke="#{col["stroke"]}" stroke-width="1.5"/>')
-            for j, ll in enumerate(label_lines):
-                dy = pos["y"] - 5 + j * 13 if len(label_lines) > 1 else pos["y"] + 4
-                parts.append(f'<text x="{pos["x"]}" y="{dy}" text-anchor="middle" '
-                             f'fill="#{col["text"]}" font-size="10" font-weight="bold">{ll}</text>')
-        else:
-            parts.append(f'<rect x="{nx}" y="{ny}" width="{NW}" height="{NH}" '
-                         f'fill="#{col["fill"]}" stroke="#{col["stroke"]}" stroke-width="1.5" rx="5"/>')
-            for j, ll in enumerate(label_lines):
-                dy = ny + 12 + j * 14 if len(label_lines) > 1 else pos["y"] + 5
-                fw = "bold" if j == 0 else "normal"
-                fs = 11 if j == 0 else 9
-                parts.append(f'<text x="{pos["x"]}" y="{dy}" text-anchor="middle" '
-                             f'fill="#{col["text"]}" font-size="{fs}" font-weight="{fw}">{ll}</text>')
-
-    parts.append('</svg>')
-    svg_content = "\n".join(parts)
-
     try:
-        from svglib.svglib import svg2rlg
-        from reportlab.graphics import renderPM
         import io as _io
+        from PIL import Image, ImageDraw, ImageFont
 
-        with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as sf:
-            sf.write(svg_content.encode())
-            svg_path = sf.name
+        # ── Canvas setup ──────────────────────────────────────────────────────
+        W, H   = 1800, max(900, 120 + len(nodes) * 95)
+        n_lanes = max(len(lanes), 1)
+        LANE_W  = W // n_lanes
 
-        png_path = svg_path.replace(".svg", ".png")
-        drawing = svg2rlg(svg_path)
-        if drawing is None:
-            raise ValueError("svglib could not parse the SVG")
+        COLORS = {
+            "dark_blue":   {"fill": (0x1F,0x4E,0x79), "text": (255,255,255), "stroke": (0x1F,0x4E,0x79)},
+            "light_blue":  {"fill": (0xDE,0xEA,0xF1), "text": (0x1F,0x4E,0x79), "stroke": (0x2E,0x75,0xB6)},
+            "green":       {"fill": (0x37,0x56,0x23), "text": (255,255,255), "stroke": (0x37,0x56,0x23)},
+            "light_green": {"fill": (0xE2,0xEF,0xDA), "text": (0x37,0x56,0x23), "stroke": (0x70,0xAD,0x47)},
+            "red":         {"fill": (0xFC,0xE4,0xD6), "text": (0xC0,0x00,0x00), "stroke": (0xC0,0x00,0x00)},
+            "yellow":      {"fill": (0xFF,0xF2,0xCC), "text": (0x7D,0x4E,0x00), "stroke": (0xF4,0xA8,0x00)},
+            "gray":        {"fill": (0xF2,0xF2,0xF2), "text": (0x40,0x40,0x40), "stroke": (0x7F,0x7F,0x7F)},
+        }
+        LANE_BG = {
+            "dark_blue":  (0xF7,0xFA,0xFD),
+            "light_blue": (0xEB,0xF3,0xFB),
+            "green":      (0xF0,0xF7,0xEE),
+        }
+        LANE_HDR = {
+            "dark_blue":  (0x1F,0x4E,0x79),
+            "light_blue": (0x2E,0x75,0xB6),
+            "green":      (0x37,0x56,0x23),
+        }
+        ARROW_COLORS = {
+            "blue":  (0x1F,0x4E,0x79),
+            "green": (0x37,0x56,0x23),
+            "red":   (0xC0,0x00,0x00),
+        }
 
-        # Scale up for high resolution output
-        drawing.width  *= 2
-        drawing.height *= 2
-        drawing.transform = (2, 0, 0, 2, 0, 0)
-        renderPM.drawToFile(drawing, png_path, fmt="PNG", dpi=150)
+        img = Image.new("RGB", (W, H), (0xF7,0xFA,0xFD))
+        draw = ImageDraw.Draw(img)
 
-        with open(png_path, "rb") as pf:
-            png_data = pf.read()
-        os.unlink(svg_path)
-        os.unlink(png_path)
+        # Load fonts (fall back to default if not found)
+        try:
+            fnt_bold  = ImageFont.truetype("arialbd.ttf",  18)
+            fnt_norm  = ImageFont.truetype("arial.ttf",    14)
+            fnt_small = ImageFont.truetype("arial.ttf",    12)
+            fnt_title = ImageFont.truetype("arialbd.ttf",  22)
+        except Exception:
+            fnt_bold = fnt_norm = fnt_small = fnt_title = ImageFont.load_default()
 
+        # ── Title bar ─────────────────────────────────────────────────────────
+        draw.rectangle([0, 0, W, 50], fill=(0x1F,0x4E,0x79))
+        title_text = f"{system_name} — System Process Flow"
+        draw.text((W // 2, 25), title_text, font=fnt_title, fill=(255,255,255), anchor="mm")
+
+        # ── Lane backgrounds & headers ────────────────────────────────────────
+        lane_x: dict[str, int] = {}
+        for i, lane in enumerate(lanes):
+            lx = i * LANE_W
+            lane_x[lane["LANE_ID"]] = lx
+            bg  = LANE_BG.get(lane.get("LANE_COLOR",""), (0xF7,0xFA,0xFD))
+            hdr = LANE_HDR.get(lane.get("LANE_COLOR",""), (0x1F,0x4E,0x79))
+            draw.rectangle([lx, 50, lx + LANE_W, H], fill=bg)
+            if i > 0:
+                draw.line([lx, 50, lx, H], fill=(0xC5,0xD9,0xEF), width=1)
+            draw.rectangle([lx, 50, lx + LANE_W, 82], fill=hdr)
+            label = lane.get("LANE_LABEL","").replace("\\n", "\n")
+            draw.text((lx + LANE_W // 2, 66), label, font=fnt_small,
+                      fill=(255,255,255), anchor="mm", align="center")
+
+        # ── Compute node positions ────────────────────────────────────────────
+        lane_count: dict[str, int] = {}
+        node_pos: dict[str, tuple] = {}
+        for n in nodes:
+            lane_id = n.get("LANE", lanes[0]["LANE_ID"] if lanes else "")
+            lx = lane_x.get(lane_id, 0)
+            idx = lane_count.get(lane_id, 0)
+            lane_count[lane_id] = idx + 1
+            cx = lx + LANE_W // 2
+            cy = 110 + idx * 95
+            node_pos[n["ID"]] = (cx, cy)
+
+        NW, NH = LANE_W - 30, 40
+
+        # ── Draw arrows first (behind nodes) ─────────────────────────────────
+        for a in arrows:
+            frm = node_pos.get(a.get("FROM",""))
+            to  = node_pos.get(a.get("TO",""))
+            if not frm:
+                continue
+            tx = to[0] if to else frm[0] + 40
+            ty = to[1] if to else frm[1] + 30
+            color = ARROW_COLORS.get(a.get("COLOR","blue"), ARROW_COLORS["blue"])
+            draw.line([frm[0], frm[1], tx, ty], fill=color, width=2)
+            # Arrowhead
+            import math
+            angle = math.atan2(ty - frm[1], tx - frm[0])
+            aw = 10
+            ax1 = tx - aw * math.cos(angle - 0.4)
+            ay1 = ty - aw * math.sin(angle - 0.4)
+            ax2 = tx - aw * math.cos(angle + 0.4)
+            ay2 = ty - aw * math.sin(angle + 0.4)
+            draw.polygon([(tx,ty),(ax1,ay1),(ax2,ay2)], fill=color)
+            if _has(a.get("LABEL")):
+                mx = (frm[0] + tx) // 2 + 4
+                my = (frm[1] + ty) // 2 - 10
+                draw.text((mx, my), a["LABEL"], font=fnt_small, fill=color)
+
+        # ── Draw nodes ────────────────────────────────────────────────────────
+        for n in nodes:
+            pos = node_pos.get(n.get("ID",""))
+            if not pos:
+                continue
+            cx, cy = pos
+            col   = COLORS.get(n.get("COLOR",""), COLORS["dark_blue"])
+            label = n.get("LABEL","").replace("{{SYSTEM_NAME}}", system_name).replace("\\n", "\n")
+            ntype = n.get("TYPE","box")
+
+            if ntype == "oval":
+                rx, ry = NW // 2 - 5, 20
+                draw.ellipse([cx-rx, cy-ry, cx+rx, cy+ry], fill=col["fill"], outline=col["stroke"], width=2)
+                draw.text((cx, cy), label, font=fnt_bold, fill=col["text"], anchor="mm", align="center")
+
+            elif ntype == "diamond":
+                dw, dh = NW // 2, 26
+                pts = [(cx, cy-dh), (cx+dw, cy), (cx, cy+dh), (cx-dw, cy)]
+                draw.polygon(pts, fill=col["fill"], outline=col["stroke"])
+                draw.text((cx, cy), label, font=fnt_small, fill=col["text"], anchor="mm", align="center")
+
+            else:  # box
+                x0, y0 = cx - NW//2, cy - NH//2
+                draw.rounded_rectangle([x0, y0, x0+NW, y0+NH], radius=5,
+                                       fill=col["fill"], outline=col["stroke"], width=2)
+                draw.text((cx, cy), label, font=fnt_norm, fill=col["text"], anchor="mm", align="center")
+
+        # ── Save to bytes ─────────────────────────────────────────────────────
+        buf = _io.BytesIO()
+        img.save(buf, format="PNG")
+        png_data = buf.getvalue()
+
+        # ── Embed in Word doc ─────────────────────────────────────────────────
         doc.add_page_break()
         _h1(doc, "System Process Flow")
         p = doc.add_paragraph()
@@ -902,6 +906,7 @@ def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
         run = p.add_run()
         run.add_picture(_io.BytesIO(png_data), width=Inches(9))
         doc.add_page_break()
+
     except Exception as e:
         import logging as _log
         _log.getLogger(__name__).warning("Flowchart render skipped: %s", e)
