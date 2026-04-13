@@ -751,9 +751,9 @@ def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
         return
 
     try:
-        import cairosvg  # noqa: F401 — presence check only
-    except (ImportError, OSError):
-        # cairosvg installed but native libcairo-2.dll not present (common on Windows)
+        from svglib.svglib import svg2rlg       # noqa: F401 — presence check only
+        from reportlab.graphics import renderPM  # noqa: F401
+    except ImportError:
         return
 
     # Filter out any instruction strings the LLM may have left in NODES/ARROWS
@@ -871,18 +871,30 @@ def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
     svg_content = "\n".join(parts)
 
     try:
-        import cairosvg
+        from svglib.svglib import svg2rlg
+        from reportlab.graphics import renderPM
+        import io as _io
+
         with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as sf:
             sf.write(svg_content.encode())
             svg_path = sf.name
+
         png_path = svg_path.replace(".svg", ".png")
-        cairosvg.svg2png(url=svg_path, write_to=png_path, output_width=2800, output_height=1740)
+        drawing = svg2rlg(svg_path)
+        if drawing is None:
+            raise ValueError("svglib could not parse the SVG")
+
+        # Scale up for high resolution output
+        drawing.width  *= 2
+        drawing.height *= 2
+        drawing.transform = (2, 0, 0, 2, 0, 0)
+        renderPM.drawToFile(drawing, png_path, fmt="PNG", dpi=150)
+
         with open(png_path, "rb") as pf:
             png_data = pf.read()
         os.unlink(svg_path)
         os.unlink(png_path)
 
-        import io as _io
         doc.add_page_break()
         _h1(doc, "System Process Flow")
         p = doc.add_paragraph()
@@ -890,8 +902,9 @@ def _try_build_flowchart(doc: Document, FC: dict, system_name: str) -> None:
         run = p.add_run()
         run.add_picture(_io.BytesIO(png_data), width=Inches(9))
         doc.add_page_break()
-    except Exception:
-        pass  # Flowchart silently skipped on any error
+    except Exception as e:
+        import logging as _log
+        _log.getLogger(__name__).warning("Flowchart render skipped: %s", e)
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
