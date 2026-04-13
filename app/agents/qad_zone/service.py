@@ -360,7 +360,7 @@ Return ONLY valid JSON with this exact structure — populate every field you ca
 Extract ONLY what you can find in the code. Omit keys with no evidence."""
 
     logger.info("PASS1 prompt length: %d chars | code length: %d chars", len(pass1_prompt), len(code))
-    raw1 = await openai_chat(pass1_system, pass1_prompt, max_tokens=8000, model="gpt-5")
+    raw1 = await openai_chat(pass1_system, pass1_prompt, max_tokens=8000, model="gpt-4o")
     logger.info("PASS1 raw response length: %d chars", len(raw1))
 
     try:
@@ -656,7 +656,7 @@ Return ONLY valid JSON:
 OUTPUT REQUIREMENT: The JSON must be at least 15,000 characters long. Every array must have real entries. Every paragraph must be 4+ sentences."""
 
     logger.info("PASS2 prompt length: %d chars", len(pass2_prompt))
-    raw = await openai_chat(pass2_system, pass2_prompt, max_tokens=16000, model="gpt-5")
+    raw = await openai_chat(pass2_system, pass2_prompt, max_tokens=16000, model="gpt-4o")
     logger.info("PASS2 raw response length: %d chars", len(raw))
 
     try:
