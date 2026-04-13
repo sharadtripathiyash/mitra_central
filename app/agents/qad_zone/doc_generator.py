@@ -52,6 +52,7 @@ FILL = {
     "YELLOW":   "FFF3CD",
     "TEAL":     "D1ECF1",
     "CODERED":  "FCE4E4",
+    "ACCENT":   "C00000",
 }
 FONT = "Arial"
 ALT  = [FILL["WHITE"], FILL["LGRAY"]]
