@@ -19,7 +19,7 @@ AGENTS: list[AgentMeta] = [
         route_prefix="/agents/visual", layout="main",
     ),
     AgentMeta(
-        key="qadzone", name="QAD-Zone", icon="wrench",
+        key="qadzone", name="Modernization", icon="wrench",
         description="Custom code knowledge base, docs & modernisation.",
         route_prefix="/agents/qadzone", layout="main",
     ),

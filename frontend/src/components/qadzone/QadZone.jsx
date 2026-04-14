@@ -91,7 +91,7 @@ function EmptyState({ onSwitch, activeMode }) {
             <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
           </svg>
         </div>
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">QAD-Zone</h1>
+        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Modernization</h1>
         <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
           Your custom code knowledge base — search, document, and modernise with AI.
         </p>
@@ -339,7 +339,7 @@ export function QadZone() {
               <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
             </svg>
           </div>
-          <span className="text-sm font-semibold text-slate-700">QAD-Zone</span>
+          <span className="text-sm font-semibold text-slate-700">Modernization</span>
           <span className="text-slate-300">|</span>
           <span className="text-sm text-slate-400 hidden sm:inline">
             Custom code knowledge base

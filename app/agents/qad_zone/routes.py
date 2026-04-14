@@ -50,7 +50,7 @@ async def qadzone_page(request: Request):
         "agents": sidebar_agents(),
         "active": "qadzone",
         "agent": {
-            "key": "qadzone", "name": "QAD-Zone", "icon": "wrench",
+            "key": "qadzone", "name": "Modernization", "icon": "wrench",
             "description": "Custom code knowledge base, documentation & modernisation.",
             "route_prefix": "/agents/qadzone",
         },
