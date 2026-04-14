@@ -29,18 +29,36 @@ const DEMO_DOC_URL   = (name) => `/agents/qadzone/demo-doc/${name}`;
 // ── Demo data (hardcoded for 3 known customizations) ─────────────────────────
 const DEMO_DATA = {
   MRN: {
-    title: "Material Return Note",
-    description: "Manages customer product returns, replacement processing and automatic credit note generation within QAD ERP.",
+    title: "Material Requisition Note",
+    executiveSummary:
+      "Custom Progress 4GL application built on QAD ERP providing a structured, multi-level workflow for raising, approving, and executing internal inventory movements — covering inventory issues (ISS-UNP), receipts (RCT-UNP), and inter-site/location transfers (ISS-TR / RCT-TR). Unlike QAD's standard Global Requisition System (GRS), this system handles internal store-to-department movements with a configurable approval hierarchy, purpose-driven GL mapping, and full audit trail.",
+    keyCapabilities: [
+      "Raise internal material requisitions against configurable types and sites",
+      "Multi-level authorization: Create → Approve → Execute with user group restrictions",
+      "Purpose-based GL account determination (product line or direct account)",
+      "Lot/serial number control during inventory execution (full, same-lot, new-lot modes)",
+      "Inter-site and inter-location inventory transfer with conflict checks",
+      "Validity date enforcement — expired requisition lines cannot be executed",
+      "Full audit trail stored in xxmrh_hist",
+    ],
     replaceability: 72,
     confidence: 85,
     businessImpact:  { label: "High",   bg: "bg-red-100",    text: "text-red-700"    },
     migrationEffort: { label: "Medium", bg: "bg-yellow-100", text: "text-yellow-700" },
-    modules: ["Sales", "Inventory", "Finance"],
+    modules: ["Inventory", "GL / Finance", "Manufacturing"],
     docFilename: "MRN_System_Documentation.docx",
   },
   DOA: {
     title: "Dead on Arrival Processing",
-    description: "Handles defective goods received from suppliers, manages supplier claims and initiates return-to-vendor workflows.",
+    executiveSummary:
+      "Custom QAD module handling defective goods received from suppliers. Provides a structured workflow for registering DOA items, raising supplier claims, and initiating return-to-vendor transactions — ensuring inventory integrity and accurate supplier liability tracking.",
+    keyCapabilities: [
+      "Register defective goods with defect classification and photo evidence",
+      "Raise and track supplier claims with auto-generated claim references",
+      "Initiate return-to-vendor (RTV) purchase returns directly from DOA records",
+      "Update inventory quantities and valuation on DOA confirmation",
+      "Integration with QAD purchasing and accounts payable for debit notes",
+    ],
     replaceability: 58,
     confidence: 78,
     businessImpact:  { label: "Medium", bg: "bg-yellow-100", text: "text-yellow-700" },
@@ -50,7 +68,15 @@ const DEMO_DATA = {
   },
   RTDC: {
     title: "Real-Time Data Collection",
-    description: "Captures production floor transactions in real time with barcode integration, shift management and live shop-floor reporting.",
+    executiveSummary:
+      "Shop-floor data capture system integrated with QAD manufacturing. Enables real-time recording of production transactions via barcode scanning, with support for shift management, work-order progress tracking, and live production reporting dashboards.",
+    keyCapabilities: [
+      "Real-time production transaction capture via barcode and manual entry",
+      "Work-order operation booking with quantity and scrap reporting",
+      "Shift management with clock-in/clock-out and operator tracking",
+      "Live WIP inventory updates synced to QAD work orders",
+      "Production reporting: efficiency, output, downtime, and scrap by shift",
+    ],
     replaceability: 45,
     confidence: 70,
     businessImpact:  { label: "High", bg: "bg-red-100", text: "text-red-700" },
@@ -243,14 +269,28 @@ function CircleProgress({ value, stroke = "#6366f1", size = 96 }) {
 function SummaryTab({ data }) {
   return (
     <div className="p-6 space-y-5">
+      {/* Executive summary */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">What this customization does</div>
-        <p className="text-slate-700 text-sm leading-relaxed">{data.description}</p>
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Executive Summary</div>
+        <p className="text-slate-700 text-sm leading-relaxed">{data.executiveSummary}</p>
         <div className="flex flex-wrap gap-1.5 mt-3">
           {data.modules.map((m) => (
             <span key={m} className="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-medium">{m}</span>
           ))}
         </div>
+      </div>
+
+      {/* Key capabilities */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Key Business Capabilities</div>
+        <ul className="space-y-2">
+          {data.keyCapabilities.map((cap, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+              <span className="mt-0.5 h-4 w-4 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+              {cap}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -445,32 +485,32 @@ export function QadZone() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, liveHtml, loading]);
 
-  // Detect known ZIP → show 10s analysis animation → reveal demo panel
+  // Reset demo state when files are cleared or mode changes
   useEffect(() => {
-    if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
-
-    if (mode === "documentation" && uploadedFiles.length > 0) {
-      const found = detectCustomization(uploadedFiles);
-      if (found) {
-        setDemoMode(null);
-        setDemoFile(uploadedFiles.find(f => f.name.replace(/\.zip$/i,"").toUpperCase() === found)?.name || "");
-        setDemoLoading(true);
-        demoTimerRef.current = setTimeout(() => {
-          setDemoLoading(false);
-          setDemoMode(found);
-        }, 10000);
-      } else {
-        setDemoLoading(false);
-        setDemoMode(null);
-      }
-    } else {
+    if (uploadedFiles.length === 0) {
+      if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
       setDemoLoading(false);
       setDemoMode(null);
     }
-    return () => { if (demoTimerRef.current) clearTimeout(demoTimerRef.current); };
-  }, [uploadedFiles, mode]);
+  }, [uploadedFiles]);
+
+  // Trigger demo analysis on Send click (called from sendChat)
+  function triggerDemoIfKnown(files) {
+    const found = detectCustomization(files);
+    if (!found) return false;
+    if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
+    setDemoMode(null);
+    setDemoFile(files.find(f => f.name.replace(/\.zip$/i, "").toUpperCase() === found)?.name || "");
+    setDemoLoading(true);
+    demoTimerRef.current = setTimeout(() => {
+      setDemoLoading(false);
+      setDemoMode(found);
+    }, 10000);
+    return true; // handled as demo — don't send to LLM
+  }
 
   function switchMode(key) {
+    if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
     setMode(key); setDemoMode(null); setDemoLoading(false); clearFiles();
     setLiveHtml(""); setStatus(""); setStreaming(false);
   }
@@ -503,6 +543,15 @@ export function QadZone() {
     const hasFiles = uploadedFiles.length > 0;
     if (!q && !hasFiles) return;
     if (loading) return;
+
+    // In documentation mode, intercept known ZIPs → show demo panel instead of LLM
+    if (mode === "documentation" && hasFiles && !overrideQuestion) {
+      if (triggerDemoIfKnown([...uploadedFiles])) {
+        clearFiles();
+        return;
+      }
+    }
+
     if (hasFiles) cachedFilesRef.current = [...uploadedFiles];
     const displayText = overrideQuestion || q || `📎 ${uploadedFiles.map((f) => f.name).join(", ")}`;
     const question    = q || (mode === "documentation" ? "Generate documentation for the uploaded code" : "Analyse and explain the uploaded code");
