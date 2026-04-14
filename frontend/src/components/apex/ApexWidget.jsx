@@ -247,7 +247,7 @@ export function ApexWidget() {
             className="text-[11px] font-semibold"
             style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", letterSpacing: "0.18em" }}
           >
-            APEX
+            Apex Assistant
           </span>
         </button>
       )}
