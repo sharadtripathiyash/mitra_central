@@ -13,7 +13,7 @@ services:
       APP_DEBUG: "false"
       APP_WORKERS: "2"
     volumes:
-      - ./downloads:/app/app/static/downloads   # persist generated Word docs
+      - /qond/mitra-central/downloads:/app/app/static/downloads   # persist generated Word docs
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 30s
