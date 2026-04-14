@@ -4,9 +4,11 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
+import re
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from itsdangerous import TimestampSigner, BadSignature, SignatureExpired
 from pydantic import BaseModel
@@ -98,3 +100,38 @@ async def qadzone_embed(request: Request, body: EmbedRequest):
     except Exception as exc:
         logger.exception("Embed failed for '%s'", body.doc_url)
         return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+# ── Demo endpoints ────────────────────────────────────────────────────────────
+
+@router.get("/demo-doc/{name}")
+async def demo_doc(name: str, request: Request):
+    """Serve a pre-stored demo documentation file from app/static/downloads/."""
+    user = request.session.get("user")
+    if not user:
+        return JSONResponse({"error": "unauthenticated"}, status_code=401)
+
+    # Sanitise name — allow only alphanumeric and underscores
+    safe_name = re.sub(r"[^A-Z0-9_]", "", name.upper())
+    if not safe_name:
+        return JSONResponse({"error": "invalid name"}, status_code=400)
+
+    doc_path = os.path.join("app", "static", "downloads", f"{safe_name}_System_Documentation.docx")
+    if not os.path.exists(doc_path):
+        return JSONResponse({"error": "Document not found yet"}, status_code=404)
+
+    filename = f"{safe_name}_System_Documentation.docx"
+    return FileResponse(
+        doc_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=filename,
+    )
+
+
+@router.post("/demo-embed")
+async def demo_embed(request: Request):
+    """Fake embed for demo — returns success immediately, frontend shows 3s spinner."""
+    user = request.session.get("user")
+    if not user:
+        return JSONResponse({"error": "unauthenticated"}, status_code=401)
+    return JSONResponse({"ok": True})
