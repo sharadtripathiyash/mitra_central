@@ -2,317 +2,455 @@
 {% block title %}Sign in · Apex{% endblock %}
 {% block body %}
 
-<!-- Background -->
-<div class="fixed inset-0 overflow-hidden" style="background: #080c18;">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  <!-- Hex grid canvas -->
-  <canvas id="bgCanvas" class="absolute inset-0 w-full h-full"></canvas>
+  :root {
+    --teal: #00e5c8;
+    --teal-dim: rgba(0,229,200,0.12);
+    --teal-glow: rgba(0,229,200,0.35);
+    --blue: #0d6ef5;
+    --ink: #060d1a;
+    --surface: rgba(10,20,42,0.82);
+    --border: rgba(0,229,200,0.18);
+    --text-primary: #e8f4ff;
+    --text-muted: rgba(180,210,255,0.55);
+    --text-hint: rgba(140,180,230,0.35);
+  }
 
-  <!-- ERP floating tags -->
-  <div class="erp-tags">
-    <span>INVENTORY</span><span>PURCHASE</span><span>FINANCE</span>
-    <span>WIP</span><span>BOM</span><span>ROUTING</span>
-    <span>SALES ORDER</span><span>VENDOR</span><span>LEDGER</span>
-    <span>MRP</span><span>COSTING</span><span>DISPATCH</span>
-  </div>
+  html, body { height: 100%; background: var(--ink); overflow: hidden; }
 
-  <!-- Top glow -->
-  <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px]"
-       style="background: radial-gradient(ellipse at top, rgba(59,130,246,0.15) 0%, transparent 70%);"></div>
-</div>
+  #bg { position: fixed; inset: 0; z-index: 0; }
 
-<!-- Login -->
-<div class="relative min-h-screen flex items-center justify-center px-4">
-  <div class="w-full max-w-md">
+  .ambient {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(ellipse 60% 50% at 15% 50%, rgba(0,229,200,0.07) 0%, transparent 70%),
+      radial-gradient(ellipse 45% 40% at 85% 20%, rgba(13,110,245,0.09) 0%, transparent 65%),
+      radial-gradient(ellipse 50% 45% at 70% 80%, rgba(0,229,200,0.05) 0%, transparent 60%);
+  }
 
-    <!-- Brand -->
-    <div class="flex flex-col items-center mb-8">
-      <!-- Animated logo ring -->
-      <div class="logo-ring mb-5">
-        <div class="logo-inner">
-          <i data-lucide="sparkles" class="text-white w-7 h-7"></i>
-        </div>
+  .scanlines {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+  }
+
+  .page {
+    position: relative; z-index: 10;
+    display: flex; height: 100vh;
+  }
+
+  /* ── Left brand panel ── */
+  .brand {
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: center; padding: 4rem 5rem; position: relative;
+  }
+
+  .brand-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--teal-dim); border: 1px solid var(--border);
+    border-radius: 100px; padding: 6px 16px;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--teal);
+    margin-bottom: 2.5rem; width: fit-content;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .brand-badge-dot {
+    width: 6px; height: 6px; background: var(--teal);
+    border-radius: 50%; animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.6); }
+  }
+
+  .brand-name {
+    font-family: 'Syne', 'Inter', sans-serif;
+    font-size: clamp(4rem, 7vw, 7rem);
+    font-weight: 800; line-height: 0.9;
+    letter-spacing: -0.03em; color: var(--text-primary);
+  }
+
+  .brand-name span {
+    display: block;
+    background: linear-gradient(135deg, var(--teal) 0%, #4af0e2 40%, var(--blue) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+
+  .brand-tagline {
+    margin-top: 1.5rem; font-size: 1.05rem;
+    color: var(--text-muted); font-weight: 300; line-height: 1.7;
+    max-width: 380px; font-family: 'Inter', sans-serif;
+  }
+
+  .brand-stats {
+    margin-top: 3.5rem; display: flex; gap: 2.5rem;
+  }
+
+  .stat { display: flex; flex-direction: column; gap: 4px; }
+
+  .stat-num {
+    font-family: 'Syne', 'Inter', sans-serif;
+    font-size: 1.6rem; font-weight: 700; color: var(--teal); line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-hint); font-weight: 400; font-family: 'Inter', sans-serif;
+  }
+
+  .brand-divider {
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, var(--border) 30%, var(--border) 70%, transparent);
+    position: absolute; right: 0; top: 10%; height: 80%;
+  }
+
+  /* ── Right login panel ── */
+  .login-panel {
+    width: 480px; display: flex;
+    align-items: center; justify-content: center; padding: 2.5rem;
+  }
+
+  .card {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px; padding: 2.75rem 2.5rem;
+    position: relative; overflow: hidden;
+    backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+    box-shadow: 0 0 0 1px rgba(0,229,200,0.06), 0 40px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(0,229,200,0.12);
+  }
+
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--teal-glow) 50%, transparent 100%);
+    animation: sweep 3s ease-in-out infinite alternate;
+  }
+
+  @keyframes sweep { from { opacity: 0.4; } to { opacity: 1; } }
+
+  .card-corner { position: absolute; width: 60px; height: 60px; pointer-events: none; }
+  .card-corner.tl { top: -1px; left: -1px; border-top: 2px solid var(--teal); border-left: 2px solid var(--teal); border-radius: 24px 0 0 0; }
+  .card-corner.br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--teal); border-right: 2px solid var(--teal); border-radius: 0 0 24px 0; }
+
+  .login-logo {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 2rem;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: var(--teal-dim); border: 1px solid var(--border);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  }
+
+  .logo-text {
+    font-family: 'Syne', 'Inter', sans-serif;
+    font-size: 1.25rem; font-weight: 700; letter-spacing: 0.04em; color: var(--text-primary);
+  }
+
+  .login-heading {
+    font-family: 'Syne', 'Inter', sans-serif;
+    font-size: 1.65rem; font-weight: 700; color: var(--text-primary);
+    margin-bottom: 0.4rem; line-height: 1.2;
+  }
+
+  .login-sub {
+    font-size: 0.875rem; color: var(--text-muted);
+    margin-bottom: 2rem; font-weight: 300; font-family: 'Inter', sans-serif;
+  }
+
+  /* ── Error alert ── */
+  .alert-error {
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 10px; padding: 10px 14px;
+    font-size: 0.83rem; color: #fca5a5;
+    margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* ── Fields ── */
+  .field { margin-bottom: 1.25rem; }
+
+  .field label {
+    display: block; font-size: 11.5px; font-weight: 500;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 0.5rem;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .input-wrap { position: relative; }
+
+  .input-icon {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--text-hint); width: 16px; height: 16px;
+    pointer-events: none; transition: color 0.2s;
+  }
+
+  .input-wrap:focus-within .input-icon { color: var(--teal); }
+
+  .apex-input {
+    width: 100%;
+    background: rgba(5,15,35,0.6);
+    border: 1px solid rgba(0,229,200,0.14);
+    border-radius: 12px;
+    padding: 13px 14px 13px 42px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem; font-weight: 400;
+    color: var(--text-primary); outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    caret-color: var(--teal);
+  }
+
+  .apex-input::placeholder { color: var(--text-hint); }
+
+  .apex-input:focus {
+    border-color: rgba(0,229,200,0.55);
+    background: rgba(5,15,35,0.85);
+    box-shadow: 0 0 0 3px rgba(0,229,200,0.07), inset 0 0 20px rgba(0,229,200,0.03);
+  }
+
+  /* ── Submit button ── */
+  .btn-login {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, #00c9ae 0%, #00e5c8 50%, #0d8ef5 100%);
+    background-size: 200% 200%;
+    border: none; border-radius: 12px;
+    font-family: 'Syne', 'Inter', sans-serif;
+    font-size: 0.95rem; font-weight: 700; letter-spacing: 0.05em;
+    color: #060d1a; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 24px rgba(0,229,200,0.22);
+    position: relative; overflow: hidden;
+    animation: btn-gradient 4s ease infinite;
+    margin-top: 0.5rem;
+  }
+
+  @keyframes btn-gradient {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .btn-login::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to right, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+    transform: translateX(-100%); transition: transform 0.5s ease;
+  }
+
+  .btn-login:hover { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(0,229,200,0.35); }
+  .btn-login:hover::after { transform: translateX(100%); }
+  .btn-login:active { transform: translateY(0); }
+
+  /* ── Footer ── */
+  .card-footer {
+    margin-top: 1.75rem; text-align: center;
+    font-size: 11px; color: var(--text-hint); line-height: 1.6;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .version-tag {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: var(--text-hint); letter-spacing: 0.08em;
+    z-index: 20; font-family: 'Inter', sans-serif;
+  }
+
+  @media (max-width: 860px) {
+    .brand { display: none; }
+    .login-panel { width: 100%; }
+  }
+</style>
+
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap" rel="stylesheet">
+
+<canvas id="bg"></canvas>
+<div class="ambient"></div>
+<div class="scanlines"></div>
+
+<div class="page">
+
+  <!-- Left brand panel -->
+  <div class="brand">
+    <div class="brand-badge">
+      <span class="brand-badge-dot"></span>
+      AI-Powered ERP Platform
+    </div>
+
+    <h1 class="brand-name">
+      APEX<br>
+      <span>QAD</span>
+    </h1>
+
+    <p class="brand-tagline">
+      Intelligent manufacturing intelligence at scale. Real-time decisions, autonomous insights, zero complexity.
+    </p>
+
+    <div class="brand-stats">
+      <div class="stat">
+        <span class="stat-num">99.9%</span>
+        <span class="stat-label">Uptime SLA</span>
       </div>
-      <h1 class="text-4xl font-bold text-white tracking-tight">Apex</h1>
-      <div class="flex items-center gap-2 mt-2">
-        <span class="h-px w-8 bg-gradient-to-r from-transparent to-blue-500"></span>
-        <p class="text-xs font-semibold tracking-[0.2em] text-blue-400 uppercase">AI Copilot for QAD ERP</p>
-        <span class="h-px w-8 bg-gradient-to-l from-transparent to-blue-500"></span>
+      <div class="stat">
+        <span class="stat-num">2.4ms</span>
+        <span class="stat-label">AI Response</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">3</span>
+        <span class="stat-label">AI Agents</span>
       </div>
     </div>
 
-    <!-- Premium card -->
-    <div class="premium-card rounded-2xl p-8">
+    <div class="brand-divider"></div>
+  </div>
 
-      <!-- Card top accent line -->
-      <div class="h-px w-full mb-6 rounded-full"
-           style="background: linear-gradient(90deg, transparent, rgba(99,102,241,0.8), rgba(59,130,246,0.8), transparent);"></div>
+  <!-- Right login panel -->
+  <div class="login-panel">
+    <div class="card">
+
+      <div class="card-corner tl"></div>
+      <div class="card-corner br"></div>
+
+      <div class="login-logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 20 20" fill="none" width="20" height="20">
+            <circle cx="10" cy="10" r="3.5" stroke="#00e5c8" stroke-width="1.5"/>
+            <path d="M10 3V1M10 19v-2M3 10H1M19 10h-2" stroke="#00e5c8" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M5.05 5.05L3.64 3.64M16.36 16.36l-1.41-1.41M14.95 5.05l1.41-1.41M3.64 16.36l1.41-1.41" stroke="#00e5c8" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+          </svg>
+        </div>
+        <span class="logo-text">APEX</span>
+      </div>
+
+      <h2 class="login-heading">Welcome back</h2>
+      <p class="login-sub">Sign in to your AI enterprise workspace</p>
 
       {% if error %}
-      <div class="mb-5 bg-red-500/10 text-red-300 px-4 py-3 rounded-xl text-sm border border-red-500/20 flex items-center gap-2">
-        <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+      <div class="alert-error">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
         {{ error }}
       </div>
       {% endif %}
 
-      <form method="post" action="/login" class="space-y-5">
+      <form method="post" action="/login">
 
-        <!-- Username field -->
-        <div class="float-field">
-          <input name="username" type="text" required autofocus
-                 placeholder=" "
-                 class="float-input peer" />
-          <label class="float-label">Username</label>
+        <div class="field">
+          <label for="username">Username</label>
+          <div class="input-wrap">
+            <input type="text" id="username" name="username" class="apex-input"
+                   placeholder="Enter your username" required autofocus autocomplete="username">
+            <svg class="input-icon" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="5.5" r="2.5" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M2 13.5c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+          </div>
         </div>
 
-        <!-- Password field -->
-        <div class="float-field">
-          <input name="password" type="password" required
-                 placeholder=" "
-                 class="float-input peer" />
-          <label class="float-label">Password</label>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <input type="password" id="password" name="password" class="apex-input"
+                   placeholder="Enter your password" required autocomplete="current-password">
+            <svg class="input-icon" viewBox="0 0 16 16" fill="none">
+              <rect x="3" y="7" width="10" height="7.5" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+          </div>
         </div>
 
-        <!-- Sign in button -->
-        <button type="submit" class="sign-in-btn w-full py-3 rounded-xl font-semibold text-white text-sm tracking-wide mt-2">
-          <span class="flex items-center justify-center gap-2">
-            <i data-lucide="log-in" class="w-4 h-4"></i>
-            Sign in to Apex
-          </span>
-        </button>
+        <button type="submit" class="btn-login">Sign in to Apex</button>
+
       </form>
 
-      <!-- Bottom accent -->
-      <div class="h-px w-full mt-6 rounded-full"
-           style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
+      <div class="card-footer">
+        APEX &nbsp;·&nbsp; POWERED BY AI &nbsp;·&nbsp; QAD ERP Edition
+      </div>
 
-      <p class="text-center text-xs text-slate-600 mt-4 tracking-wide">
-        APEX &nbsp;·&nbsp; POWERED BY AI
-      </p>
     </div>
-
   </div>
 </div>
 
-<style>
-/* ── Premium card ──────────────────────────────────────── */
-.premium-card {
-  background: linear-gradient(135deg,
-    rgba(255,255,255,0.05) 0%,
-    rgba(255,255,255,0.02) 100%);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow:
-    0 0 0 1px rgba(99,102,241,0.1),
-    0 30px 60px rgba(0,0,0,0.5),
-    0 0 80px rgba(59,130,246,0.05),
-    inset 0 1px 0 rgba(255,255,255,0.07);
-}
-
-/* ── Logo ring ─────────────────────────────────────────── */
-.logo-ring {
-  position: relative;
-  width: 70px; height: 70px;
-}
-.logo-ring::before, .logo-ring::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 1.5px solid transparent;
-}
-.logo-ring::before {
-  border-top-color: rgba(99,102,241,0.8);
-  border-right-color: rgba(99,102,241,0.4);
-  animation: spin 3s linear infinite;
-}
-.logo-ring::after {
-  border-bottom-color: rgba(59,130,246,0.6);
-  border-left-color: rgba(59,130,246,0.2);
-  animation: spin 2s linear infinite reverse;
-  inset: -8px;
-}
-.logo-inner {
-  width: 70px; height: 70px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #7c3aed);
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 30px rgba(99,102,241,0.5), 0 0 60px rgba(59,130,246,0.2);
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Floating label inputs ─────────────────────────────── */
-.float-field { position: relative; }
-.float-input {
-  width: 100%;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 0.75rem;
-  padding: 1rem 1rem 0.4rem;
-  color: white;
-  font-size: 0.875rem;
-  outline: none;
-  transition: all 0.2s;
-}
-.float-input:focus {
-  border-color: rgba(99,102,241,0.6);
-  background: rgba(99,102,241,0.06);
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
-}
-.float-label {
-  position: absolute;
-  left: 1rem; top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.875rem;
-  color: rgba(148,163,184,0.7);
-  pointer-events: none;
-  transition: all 0.2s;
-}
-.float-input:focus ~ .float-label,
-.float-input:not(:placeholder-shown) ~ .float-label {
-  top: 0.5rem;
-  transform: none;
-  font-size: 0.65rem;
-  color: rgba(99,102,241,0.9);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-/* ── Sign in button ────────────────────────────────────── */
-.sign-in-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #7c3aed 100%);
-  background-size: 200% 200%;
-  animation: gradientShift 3s ease infinite;
-  box-shadow: 0 4px 20px rgba(99,102,241,0.4), 0 1px 0 rgba(255,255,255,0.1) inset;
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.sign-in-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 30px rgba(99,102,241,0.5), 0 1px 0 rgba(255,255,255,0.1) inset;
-}
-.sign-in-btn:active { transform: translateY(0); }
-@keyframes gradientShift {
-  0%, 100% { background-position: 0% 50%; }
-  50%       { background-position: 100% 50%; }
-}
-
-/* ── ERP floating tags ─────────────────────────────────── */
-.erp-tags span {
-  position: absolute;
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  color: rgba(99,102,241,0.2);
-  white-space: nowrap;
-  animation: floatTag linear infinite;
-  pointer-events: none;
-}
-.erp-tags span:nth-child(1)  { left:5%;   top:15%; animation-duration:22s; animation-delay:0s;    }
-.erp-tags span:nth-child(2)  { left:80%;  top:8%;  animation-duration:18s; animation-delay:-3s;   }
-.erp-tags span:nth-child(3)  { left:20%;  top:70%; animation-duration:25s; animation-delay:-6s;   }
-.erp-tags span:nth-child(4)  { left:65%;  top:55%; animation-duration:20s; animation-delay:-9s;   }
-.erp-tags span:nth-child(5)  { left:40%;  top:85%; animation-duration:23s; animation-delay:-2s;   }
-.erp-tags span:nth-child(6)  { left:88%;  top:40%; animation-duration:17s; animation-delay:-5s;   }
-.erp-tags span:nth-child(7)  { left:10%;  top:45%; animation-duration:28s; animation-delay:-11s;  }
-.erp-tags span:nth-child(8)  { left:55%;  top:25%; animation-duration:21s; animation-delay:-7s;   }
-.erp-tags span:nth-child(9)  { left:30%;  top:92%; animation-duration:19s; animation-delay:-14s;  }
-.erp-tags span:nth-child(10) { left:72%;  top:78%; animation-duration:24s; animation-delay:-1s;   }
-.erp-tags span:nth-child(11) { left:15%;  top:30%; animation-duration:26s; animation-delay:-8s;   }
-.erp-tags span:nth-child(12) { left:48%;  top:60%; animation-duration:16s; animation-delay:-10s;  }
-@keyframes floatTag {
-  0%   { transform: translateY(0px);   opacity: 0;   }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: translateY(-60px); opacity: 0;   }
-}
-</style>
+<div class="version-tag">Apex v1.0 &nbsp;·&nbsp; QAD Enterprise Edition</div>
 
 <script>
-// ── Hex grid + data flow lines on canvas ──────────────────
-const canvas = document.getElementById("bgCanvas");
-const ctx    = canvas.getContext("2d");
+// ── Neural network canvas background ──
+const canvas = document.getElementById('bg');
+const ctx    = canvas.getContext('2d');
+let W, H, nodes;
 
 function resize() {
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  const count = Math.floor((W * H) / 14000);
+  nodes = Array.from({ length: count }, () => ({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    vx: (Math.random() - 0.5) * 0.35,
+    vy: (Math.random() - 0.5) * 0.35,
+    r: Math.random() * 1.8 + 0.6,
+    pulse: Math.random() * Math.PI * 2,
+    pulseSpeed: 0.008 + Math.random() * 0.015,
+    type: Math.random() > 0.85 ? 'bright' : 'dim'
+  }));
 }
-resize();
-window.addEventListener("resize", resize);
 
-// Data flow particles along diagonal lines
-const STREAMS = Array.from({ length: 18 }, (_, i) => ({
-  x:    (i / 18) * window.innerWidth * 1.5 - window.innerWidth * 0.2,
-  y:    -20,
-  speed: Math.random() * 1.2 + 0.4,
-  len:   Math.random() * 60 + 30,
-  alpha: Math.random() * 0.3 + 0.1,
-  color: Math.random() > 0.5 ? "99,102,241" : "59,130,246",
-}));
+function draw() {
+  ctx.clearRect(0, 0, W, H);
 
-// Nodes (intersection points that pulse)
-const NODES = Array.from({ length: 12 }, () => ({
-  x:     Math.random() * window.innerWidth,
-  y:     Math.random() * window.innerHeight,
-  r:     Math.random() * 2 + 1,
-  pulse: Math.random() * Math.PI * 2,
-  speed: Math.random() * 0.02 + 0.01,
-}));
-
-function drawFrame() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw faint diagonal grid lines
-  ctx.strokeStyle = "rgba(99,102,241,0.04)";
-  ctx.lineWidth   = 1;
-  for (let x = -canvas.height; x < canvas.width + canvas.height; x += 60) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x + canvas.height, canvas.height);
-    ctx.stroke();
+  const DIST = 140;
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[i].x - nodes[j].x;
+      const dy = nodes[i].y - nodes[j].y;
+      const d  = Math.sqrt(dx*dx + dy*dy);
+      if (d < DIST) {
+        const alpha = (1 - d / DIST) * 0.18;
+        ctx.beginPath();
+        ctx.moveTo(nodes[i].x, nodes[i].y);
+        ctx.lineTo(nodes[j].x, nodes[j].y);
+        ctx.strokeStyle = `rgba(0,229,200,${alpha})`;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
   }
 
-  // Draw flowing data stream particles
-  STREAMS.forEach((s) => {
-    s.y += s.speed;
-    if (s.y > canvas.height + 100) {
-      s.y = -s.len;
-      s.x = Math.random() * canvas.width * 1.2 - canvas.width * 0.1;
+  nodes.forEach(n => {
+    n.pulse += n.pulseSpeed;
+    const glow      = (Math.sin(n.pulse) + 1) / 2;
+    const baseAlpha = n.type === 'bright' ? 0.7 + glow * 0.3 : 0.2 + glow * 0.15;
+    const r         = n.r + (n.type === 'bright' ? glow * 0.8 : 0);
+
+    if (n.type === 'bright') {
+      const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 4);
+      grad.addColorStop(0, `rgba(0,229,200,${baseAlpha})`);
+      grad.addColorStop(1, 'rgba(0,229,200,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 4, 0, Math.PI * 2);
+      ctx.fill();
     }
-    const grad = ctx.createLinearGradient(s.x, s.y - s.len, s.x + s.len * 0.3, s.y);
-    grad.addColorStop(0, `rgba(${s.color},0)`);
-    grad.addColorStop(1, `rgba(${s.color},${s.alpha})`);
-    ctx.strokeStyle = grad;
-    ctx.lineWidth   = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(s.x, s.y - s.len);
-    ctx.lineTo(s.x + s.len * 0.3, s.y);
-    ctx.stroke();
-  });
 
-  // Draw pulsing nodes
-  NODES.forEach((n) => {
-    n.pulse += n.speed;
-    const scale = 0.6 + Math.sin(n.pulse) * 0.4;
-    const alpha = 0.3 + Math.sin(n.pulse) * 0.2;
-
-    // Outer ring
     ctx.beginPath();
-    ctx.arc(n.x, n.y, n.r * scale * 4, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(99,102,241,${alpha * 0.3})`;
-    ctx.lineWidth   = 0.5;
-    ctx.stroke();
-
-    // Inner dot
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, n.r * scale, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(99,102,241,${alpha})`;
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = n.type === 'bright' ? `rgba(0,229,200,${baseAlpha})` : `rgba(0,180,160,${baseAlpha})`;
     ctx.fill();
+
+    n.x += n.vx; n.y += n.vy;
+    if (n.x < -20) n.x = W + 20;
+    if (n.x > W+20) n.x = -20;
+    if (n.y < -20) n.y = H + 20;
+    if (n.y > H+20) n.y = -20;
   });
 
-  requestAnimationFrame(drawFrame);
+  requestAnimationFrame(draw);
 }
-drawFrame();
+
+window.addEventListener('resize', resize);
+resize();
+draw();
 </script>
 
 {% endblock %}
