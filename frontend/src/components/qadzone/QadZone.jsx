@@ -31,7 +31,7 @@ const DEMO_DATA = {
   MRN: {
     title: "Material Requisition Note",
     executiveSummary:
-      "Custom Progress 4GL application built on QAD ERP providing a structured, multi-level workflow for raising, approving, and executing internal inventory movements — covering inventory issues (ISS-UNP), receipts (RCT-UNP), and inter-site/location transfers (ISS-TR / RCT-TR). Unlike QAD's standard Global Requisition System (GRS), this system handles internal store-to-department movements with a configurable approval hierarchy, purpose-driven GL mapping, and full audit trail.",
+      "Custom Progress 4GL application built on QAD ERP providing a structured, multi-level workflow for raising, approving, and executing internal inventory movements — covering inventory issues (ISS-UNP), receipts (RCT-UNP), and inter-site/location transfers (ISS-TR / RCT-TR). Unlike QAD's standard Global Requisition System (GRS), this system handles internal store-to-department movements with a configurable approval hierarchy, purpose-driven GL mapping, lot/serial tracking, and a full audit history trail.",
     keyCapabilities: [
       "Raise internal material requisitions against configurable types and sites",
       "Multi-level authorization: Create → Approve → Execute with user group restrictions",
@@ -40,6 +40,7 @@ const DEMO_DATA = {
       "Inter-site and inter-location inventory transfer with conflict checks",
       "Validity date enforcement — expired requisition lines cannot be executed",
       "Full audit trail stored in xxmrh_hist",
+      "Inventory availability display before transaction entry",
     ],
     replaceability: 72,
     confidence: 85,
@@ -47,42 +48,69 @@ const DEMO_DATA = {
     migrationEffort: { label: "Medium", bg: "bg-yellow-100", text: "text-yellow-700" },
     modules: ["Inventory", "GL / Finance", "Manufacturing"],
     docFilename: "MRN_System_Documentation.docx",
+    sources: [
+      { label: "QAD Adaptive ERP — Inventory Management Capabilities Guide", url: "https://www.qad.com/products/qad-adaptive-erp" },
+      { label: "QAD Global Requisition System (GRS) Feature Comparison", url: "https://www.qad.com/solutions/manufacturing" },
+      { label: "QAD Community: Internal Requisition & Transfer Best Practices", url: "https://community.qad.com" },
+      { label: "Custom code analysis — 6-phase migration roadmap (internal)", url: null },
+    ],
   },
   DOA: {
-    title: "Dead on Arrival Processing",
+    title: "Dynamic Approval Orchestration",
     executiveSummary:
-      "Custom QAD module handling defective goods received from suppliers. Provides a structured workflow for registering DOA items, raising supplier claims, and initiating return-to-vendor transactions — ensuring inventory integrity and accurate supplier liability tracking.",
+      "Universal, rule-driven approval engine built on QAD ERP using Progress 4GL. Not a standalone business application but a shared approval infrastructure layer — a reusable framework consumed by any custom module (MRN, RTDC, SPA, DCREL, MDM, etc.) requiring multi-level approval workflows. DOA decouples approval logic from individual modules; all call a single engine (xxdoaproc.p) that dynamically determines the correct approver sequence based on configurable rules. Integrates with Microsoft Power Automate for email-based approvals, enabling approvers to act directly from their inbox without logging into QAD.",
     keyCapabilities: [
-      "Register defective goods with defect classification and photo evidence",
-      "Raise and track supplier claims with auto-generated claim references",
-      "Initiate return-to-vendor (RTV) purchase returns directly from DOA records",
-      "Update inventory quantities and valuation on DOA confirmation",
-      "Integration with QAD purchasing and accounts payable for debit notes",
+      "Universal approval engine: any module can plug in by calling xxdoaproc.p with rule type, business line, site, and record ID",
+      "Configurable rules: up to 15 AND-combined conditions per rule, evaluated dynamically against any QAD database table",
+      "Configurable approver chains: up to 10 sequential approvers per rule, referenced by reusable approver codes",
+      "Approver code abstraction: codes resolved to actual email addresses at runtime via xxdoaappr_mstr",
+      "Alternate approver support: each slot can have a primary and alternate email address",
+      "Notify-To (CC) support: up to 10 notification-only recipients per rule",
+      "SELF keyword: first approver resolves to the submitting user's email at runtime",
+      "Power Automate integration: email-based approval without QAD access",
+      "Approval history: every action written to xxdoah_hist with timestamp, approver, and comments",
+      "Bulk import/export: rules and approvers exportable to CSV and re-importable via upload utilities",
     ],
-    replaceability: 58,
-    confidence: 78,
-    businessImpact:  { label: "Medium", bg: "bg-yellow-100", text: "text-yellow-700" },
-    migrationEffort: { label: "Low",    bg: "bg-green-100",  text: "text-green-700"  },
-    modules: ["Purchasing", "Inventory", "Quality"],
+    replaceability: 65,
+    confidence: 90,
+    businessImpact:  { label: "High", bg: "bg-red-100",  text: "text-red-700"  },
+    migrationEffort: { label: "High", bg: "bg-red-100",  text: "text-red-700"  },
+    modules: ["Cross-module", "Workflow", "Integration"],
     docFilename: "DOA_System_Documentation.docx",
+    sources: [
+      { label: "QAD Adaptive ERP — Workflow & Approval Automation Overview", url: "https://www.qad.com/products/qad-adaptive-erp" },
+      { label: "Microsoft Power Automate + QAD Integration Patterns", url: "https://learn.microsoft.com/en-us/power-automate/" },
+      { label: "QAD Community: Approval Engine Design Patterns", url: "https://community.qad.com" },
+      { label: "Feature gap analysis — 7-phase migration roadmap (internal)", url: null },
+    ],
   },
   RTDC: {
-    title: "Real-Time Data Collection",
+    title: "Returnable / Non-Returnable Delivery Challan",
     executiveSummary:
-      "Shop-floor data capture system integrated with QAD manufacturing. Enables real-time recording of production transactions via barcode scanning, with support for shift management, work-order progress tracking, and live production reporting dashboards.",
+      "Custom Progress 4GL application built on QAD ERP providing a structured, multi-level workflow for creating, approving, and managing delivery challans sent to customers — covering both Returnable (material goes out and comes back) and Non-Returnable (permanent dispatch) scenarios. The system manages inventory tracking, customer credit validation, configurable approval hierarchy, challan cancellation with email notification, material return processing, and full audit trail via QAD's standard transaction history (tr_hist). It integrates directly with QAD's Inventory Transfer API (maintainInventoryTransfer) to move stock to virtual customer locations on challan creation and back upon return or cancellation.",
     keyCapabilities: [
-      "Real-time production transaction capture via barcode and manual entry",
-      "Work-order operation booking with quantity and scrap reporting",
-      "Shift management with clock-in/clock-out and operator tracking",
-      "Live WIP inventory updates synced to QAD work orders",
-      "Production reporting: efficiency, output, downtime, and scrap by shift",
+      "Create Delivery Challans with configurable types (Returnable / Non-Returnable) against validated customers",
+      "Multi-level approval: Create → Submit → Approve/Reject with email notifications at each step",
+      "Inventory reservation: items moved to virtual out-location (RTDC_VIRT1) on creation, intermediate location on approval",
+      "Customer credit hold validation — challans cannot be raised against customers on credit hold",
+      "Due date enforcement: DC due date capped at Creation Date + 180 days; line dates within header",
+      "Material return processing with partial-quantity support, lot/serial tracking, and reason capture",
+      "Challan cancellation workflow with criteria checklist, email notification, and inventory reversal",
+      "Rejection workflow with HTML email to originating sales person and all previous approvers",
+      "Integrated challan print report (xx_rtdcchallan)",
     ],
-    replaceability: 45,
-    confidence: 70,
-    businessImpact:  { label: "High", bg: "bg-red-100", text: "text-red-700" },
-    migrationEffort: { label: "High", bg: "bg-red-100", text: "text-red-700" },
-    modules: ["Manufacturing", "WIP", "Inventory"],
+    replaceability: 72,
+    confidence: 85,
+    businessImpact:  { label: "High",   bg: "bg-red-100",    text: "text-red-700"    },
+    migrationEffort: { label: "Medium", bg: "bg-yellow-100", text: "text-yellow-700" },
+    modules: ["Sales", "Inventory", "Customer Service"],
     docFilename: "RTDC_System_Documentation.docx",
+    sources: [
+      { label: "QAD Adaptive ERP — Customer Delivery & Shipment Management", url: "https://www.qad.com/products/qad-adaptive-erp" },
+      { label: "QAD Inventory Transfer API (maintainInventoryTransfer) Documentation", url: "https://www.qad.com/solutions/distribution" },
+      { label: "QAD Community: Delivery Challan & Consignment Tracking", url: "https://community.qad.com" },
+      { label: "Custom code analysis — 6-phase migration roadmap (internal)", url: null },
+    ],
   },
 };
 
@@ -330,6 +358,28 @@ function SummaryTab({ data }) {
           </div>
         </div>
       </div>
+
+      {/* Sources */}
+      {data.sources?.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Analysis Sources</div>
+          <div className="space-y-2">
+            {data.sources.map((s, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <span className="text-slate-300 mt-0.5 shrink-0">•</span>
+                {s.url ? (
+                  <a href={s.url} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline leading-relaxed">
+                    {s.label}
+                  </a>
+                ) : (
+                  <span className="text-xs text-slate-500 leading-relaxed">{s.label}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -645,8 +695,8 @@ export function QadZone() {
         <ModeBar mode={mode} onChange={switchMode} />
       </header>
 
-      <div className="flex-1 relative overflow-hidden">
-        <main className="h-full overflow-y-auto">
+      <div className="flex-1 min-h-0 flex flex-col">
+        <main className="flex-1 overflow-y-auto">
 
           {showEmpty && <EmptyState onSwitch={switchMode} activeMode={mode} />}
 
@@ -692,7 +742,7 @@ export function QadZone() {
           )}
         </main>
 
-        {mode !== "modernisation" && (
+        {mode !== "modernisation" && !demoMode && !demoLoading && (
           <FileUploadBar mode={mode} input={input} setInput={setInput}
             uploadedFiles={uploadedFiles} onAddFiles={addFiles} onRemoveFile={removeFile}
             onSend={() => sendChat()} loading={loading} />
