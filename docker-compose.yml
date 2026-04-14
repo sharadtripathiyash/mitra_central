@@ -1,0 +1,22 @@
+services:
+  app:
+    image: ghcr.io/sharadtripathiyash/mitra_central:latest
+    container_name: mitra-central
+    restart: always
+    ports:
+      - "8765:8000"          # external 8765 → internal 8000
+    env_file:
+      - .env
+    environment:
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8000"
+      APP_DEBUG: "false"
+      APP_WORKERS: "2"
+    volumes:
+      - ./downloads:/app/app/static/downloads   # persist generated Word docs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
