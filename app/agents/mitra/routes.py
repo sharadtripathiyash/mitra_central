@@ -89,7 +89,7 @@ async def mitra_page(request: Request):
         "user": user,
         "agents": sidebar_agents(),
         "active": "mitra",
-        "agent": {"key": "mitra", "name": "Mitra", "icon": "message-square",
+        "agent": {"key": "mitra", "name": "Apex", "icon": "message-square",
                   "description": "Natural‑Language Intelligence for QAD Data.",
                   "route_prefix": "/agents/mitra"},
         "suggestions": _get_suggestions(user.get("roles", [])),
