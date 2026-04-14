@@ -477,17 +477,22 @@ export function QadZone() {
   const [modernResult, setModernResult]      = useState(null);
 
   const { uploadedFiles, addFiles, removeFile, clearFiles } = useFileUpload();
-  const cachedFilesRef = useRef([]);
-  const closeWsRef     = useRef(null);
-  const chatDoneRef    = useRef(false);
-  const modernDoneRef  = useRef(false);
-  const bottomRef      = useRef(null);
+  const cachedFilesRef   = useRef([]);
+  const closeWsRef       = useRef(null);
+  const chatDoneRef      = useRef(false);
+  const modernDoneRef    = useRef(false);
+  const bottomRef        = useRef(null);
+  const demoStartingRef  = useRef(false); // prevents useEffect from cancelling demo on clearFiles()
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, liveHtml, loading]);
 
-  // Reset demo state when files are cleared or mode changes
+  // Reset demo state only when user manually removes all files (not when sendChat clears them)
   useEffect(() => {
     if (uploadedFiles.length === 0) {
+      if (demoStartingRef.current) {
+        demoStartingRef.current = false; // sendChat just cleared files — ignore this trigger
+        return;
+      }
       if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
       setDemoLoading(false);
       setDemoMode(null);
@@ -502,11 +507,13 @@ export function QadZone() {
     setDemoMode(null);
     setDemoFile(files.find(f => f.name.replace(/\.zip$/i, "").toUpperCase() === found)?.name || "");
     setDemoLoading(true);
+    demoStartingRef.current = true; // tell useEffect to skip the next "files cleared" event
     demoTimerRef.current = setTimeout(() => {
       setDemoLoading(false);
       setDemoMode(found);
+      demoTimerRef.current = null;
     }, 10000);
-    return true; // handled as demo — don't send to LLM
+    return true;
   }
 
   function switchMode(key) {
