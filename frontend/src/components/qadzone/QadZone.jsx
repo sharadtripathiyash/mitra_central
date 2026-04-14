@@ -68,6 +68,89 @@ function detectCustomization(files) {
   return null;
 }
 
+// ── Analysis steps shown during 10s fake loading ─────────────────────────────
+const ANALYSIS_STEPS = [
+  { icon: "📂", text: "Reading uploaded files…"              },
+  { icon: "🔍", text: "Scanning program structure…"          },
+  { icon: "🧠", text: "Identifying customization type…"      },
+  { icon: "📊", text: "Evaluating QAD Adaptive coverage…"    },
+  { icon: "⚙️",  text: "Assessing migration complexity…"     },
+  { icon: "💼", text: "Measuring business impact…"           },
+  { icon: "✅", text: "Building analysis report…"            },
+];
+
+function DemoLoader({ filename }) {
+  const [stepIdx, setStepIdx] = useState(0);
+  const [done, setDone]       = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStepIdx((prev) => {
+        if (prev >= ANALYSIS_STEPS.length - 1) { clearInterval(interval); return prev; }
+        return prev + 1;
+      });
+    }, 1300);
+    const doneTimer = setTimeout(() => setDone(true), 9500);
+    return () => { clearInterval(interval); clearTimeout(doneTimer); };
+  }, []);
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-16 flex flex-col items-center gap-6">
+      {/* Spinning ring */}
+      <div className="relative h-16 w-16">
+        <svg className="animate-spin" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="28" stroke="#e2e8f0" strokeWidth="6" />
+          <path d="M32 4a28 28 0 0 1 28 28" stroke="url(#grad)" strokeWidth="6" strokeLinecap="round" />
+          <defs>
+            <linearGradient id="grad" x1="32" y1="4" x2="60" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#6366f1" /><stop offset="1" stopColor="#3b82f6" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center text-xl">
+          {done ? "✅" : ANALYSIS_STEPS[stepIdx].icon}
+        </div>
+      </div>
+
+      {/* Title */}
+      <div className="text-center">
+        <div className="text-base font-bold text-slate-800">
+          {done ? "Analysis complete!" : "Analyzing customization…"}
+        </div>
+        <div className="text-xs text-slate-500 mt-1">{filename}</div>
+      </div>
+
+      {/* Step list */}
+      <div className="w-full space-y-2">
+        {ANALYSIS_STEPS.map((s, i) => {
+          const isActive = i === stepIdx && !done;
+          const isDone   = i < stepIdx || done;
+          return (
+            <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300
+              ${isActive ? "bg-indigo-50 border border-indigo-200 shadow-sm" : isDone ? "opacity-50" : "opacity-20"}`}>
+              <span className="text-base w-5 text-center shrink-0">{isDone || isActive ? s.icon : "○"}</span>
+              <span className={`text-sm ${isActive ? "font-semibold text-indigo-700" : "text-slate-600"}`}>
+                {s.text}
+              </span>
+              {isDone && !isActive && (
+                <span className="ml-auto text-green-500 text-xs font-bold shrink-0">✓</span>
+              )}
+              {isActive && (
+                <span className="ml-auto flex gap-0.5 shrink-0">
+                  {[0,1,2].map((d) => (
+                    <span key={d} className="inline-block w-1 h-1 rounded-full bg-indigo-400 animate-bounce"
+                      style={{ animationDelay: `${d * 150}ms` }} />
+                  ))}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Card icons ────────────────────────────────────────────────────────────────
 function IconSearch() {
   return (
@@ -341,7 +424,10 @@ export function QadZone() {
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatus]   = useState("");
   const [liveHtml, setLiveHtml]   = useState("");
-  const [demoMode, setDemoMode]   = useState(null);
+  const [demoMode, setDemoMode]       = useState(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoFile, setDemoFile]       = useState("");
+  const demoTimerRef                  = useRef(null);
 
   const [modernForm, setModernForm] = useState({ currentVersion:"", currentCustom:"", targetVersion:"", targetCustom:"" });
   const [modernLoading, setModernLoading]    = useState(false);
@@ -359,16 +445,33 @@ export function QadZone() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, liveHtml, loading]);
 
+  // Detect known ZIP → show 10s analysis animation → reveal demo panel
   useEffect(() => {
+    if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
+
     if (mode === "documentation" && uploadedFiles.length > 0) {
-      setDemoMode(detectCustomization(uploadedFiles));
+      const found = detectCustomization(uploadedFiles);
+      if (found) {
+        setDemoMode(null);
+        setDemoFile(uploadedFiles.find(f => f.name.replace(/\.zip$/i,"").toUpperCase() === found)?.name || "");
+        setDemoLoading(true);
+        demoTimerRef.current = setTimeout(() => {
+          setDemoLoading(false);
+          setDemoMode(found);
+        }, 10000);
+      } else {
+        setDemoLoading(false);
+        setDemoMode(null);
+      }
     } else {
+      setDemoLoading(false);
       setDemoMode(null);
     }
+    return () => { if (demoTimerRef.current) clearTimeout(demoTimerRef.current); };
   }, [uploadedFiles, mode]);
 
   function switchMode(key) {
-    setMode(key); setDemoMode(null); clearFiles();
+    setMode(key); setDemoMode(null); setDemoLoading(false); clearFiles();
     setLiveHtml(""); setStatus(""); setStreaming(false);
   }
 
@@ -465,7 +568,7 @@ export function QadZone() {
     closeWsRef.current = closeWs;
   }
 
-  const showEmpty = messages.length === 0 && mode !== "modernisation" && !demoMode;
+  const showEmpty = messages.length === 0 && mode !== "modernisation" && !demoMode && !demoLoading;
 
   return (
     <div className="flex-1 flex flex-col">
@@ -491,7 +594,8 @@ export function QadZone() {
 
           {showEmpty && <EmptyState onSwitch={switchMode} activeMode={mode} />}
 
-          {demoMode && mode === "documentation" && <DemoPanel custName={demoMode} />}
+          {demoLoading && mode === "documentation" && <DemoLoader filename={demoFile} />}
+          {!demoLoading && demoMode && mode === "documentation" && <DemoPanel custName={demoMode} />}
 
           {mode === "modernisation" && (
             <ModernisationPanel form={modernForm} setForm={setModernForm} onSubmit={sendModernisation}
