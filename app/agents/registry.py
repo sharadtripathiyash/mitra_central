@@ -10,7 +10,7 @@ from app.agents.base import AgentMeta
 AGENTS: list[AgentMeta] = [
     AgentMeta(
         key="mitra", name="Mitra", icon="message-square",
-        description="Ask your QAD data in natural language.",
+        description="Natural‑Language Intelligence for QAD Data.",
         route_prefix="/agents/mitra", layout="main",
     ),
     AgentMeta(

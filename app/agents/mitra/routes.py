@@ -90,7 +90,7 @@ async def mitra_page(request: Request):
         "agents": sidebar_agents(),
         "active": "mitra",
         "agent": {"key": "mitra", "name": "Mitra", "icon": "message-square",
-                  "description": "Ask your QAD data in natural language.",
+                  "description": "Natural‑Language Intelligence for QAD Data.",
                   "route_prefix": "/agents/mitra"},
         "suggestions": _get_suggestions(user.get("roles", [])),
         "active_domain": active_domain,
