@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ agent.name }} · Apex{% endblock %}
 {% block body %}
-<div class="h-full flex">
+<div class="h-full flex overflow-hidden">
   {% include "partials/sidebar.html" %}
 
   {# React mounts here — QadZone component takes over the full right panel #}
-  <div id="qadzone-root" class="flex-1 flex flex-col"></div>
+  <div id="qadzone-root" class="flex-1 min-h-0 flex flex-col overflow-hidden"></div>
 </div>
 
 {% include "partials/apex_widget.html" %}
