@@ -8,7 +8,7 @@
 
   <!-- Logo + hamburger row -->
   <div class="flex items-center shrink-0"
-       style="height:56px;border-bottom:1px solid rgba(0,229,200,0.1);padding:0 10px;gap:8px">
+       style="height:56px;border-bottom:1px solid rgba(0,229,200,0.22);box-shadow:0 2px 12px rgba(0,0,0,0.3),0 1px 0 rgba(0,229,200,0.06);padding:0 10px;gap:8px">
 
     <!-- Hamburger — always visible -->
     <button @click="sidebarOpen = !sidebarOpen; localStorage.setItem('apex_sb', sidebarOpen ? '1' : '0')"
@@ -88,7 +88,7 @@
   </nav>
 
   <!-- Bottom: settings + user -->
-  <div style="border-top:1px solid rgba(0,229,200,0.08);padding:12px 10px">
+  <div style="border-top:1px solid rgba(0,229,200,0.22);box-shadow:0 -2px 12px rgba(0,0,0,0.25),0 -1px 0 rgba(0,229,200,0.06);padding:12px 10px">
 
     <a href="/settings"
        class="flex items-center rounded-lg transition mb-2"
