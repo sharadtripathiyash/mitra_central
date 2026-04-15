@@ -1,131 +1,177 @@
-/* Mitra Central — custom styles on top of Tailwind CDN */
+/* ═══════════════════════════════════════════════════════════════════
+   Apex Central — Dark Teal Theme
+   Matches login/roles page: ink background, teal accents, glassmorphism
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --teal:         #00e5c8;
+  --teal-dim:     rgba(0,229,200,0.12);
+  --teal-glow:    rgba(0,229,200,0.30);
+  --ink:          #060d1a;
+  --ink-2:        #080f20;
+  --ink-3:        #0a1428;
+  --surface:      rgba(10,20,42,0.90);
+  --surface-2:    rgba(12,24,50,0.95);
+  --border:       rgba(0,229,200,0.14);
+  --border-hover: rgba(0,229,200,0.35);
+  --text-primary: #e8f4ff;
+  --text-muted:   rgba(180,210,255,0.55);
+  --text-hint:    rgba(140,180,230,0.30);
+}
+
+/* ── Base ── */
 html, body { height: 100%; }
-body { -webkit-font-smoothing: antialiased; }
+body {
+  background: var(--ink);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 10px; height: 10px; }
+/* Subtle grid texture for main app (not login/roles — those are standalone) */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,229,200,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,200,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-thumb { background: rgba(0,229,200,0.2); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,229,200,0.4); }
 
-/* Data table */
+/* ── Data table ── */
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 .data-table th {
-  text-align: left; font-weight: 600; color: #475569;
-  background: #f8fafc; padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #e2e8f0; position: sticky; top: 0;
+  text-align: left; font-weight: 600; color: var(--teal);
+  background: rgba(0,229,200,0.06); padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border); position: sticky; top: 0;
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
 }
-.data-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f1f5f9; color: #334155; }
-.data-table tr:hover td { background: #f8fafc; }
-.table-wrap { max-height: 420px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 0.75rem; }
+.data-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(0,229,200,0.06);
+  color: var(--text-primary);
+}
+.data-table tr:hover td { background: rgba(0,229,200,0.04); }
+.table-wrap {
+  max-height: 420px; overflow: auto;
+  border: 1px solid var(--border); border-radius: 0.75rem;
+  background: var(--surface);
+}
 
-/* Code / SQL block */
+/* ── Code / SQL block ── */
 .sql-block {
-  background: #0f172a; color: #e2e8f0;
+  background: rgba(3,8,20,0.9);
+  color: var(--teal);
+  border: 1px solid var(--border);
   padding: 0.875rem 1rem; border-radius: 0.75rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.78rem; overflow-x: auto; white-space: pre;
 }
 
-/* KPI cards */
+/* ── KPI cards ── */
 .kpi-card {
-  background: linear-gradient(135deg, #eef4ff 0%, #dbe6ff 100%);
-  border: 1px solid #bcd0ff; border-radius: 1rem; padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem; padding: 1.25rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.kpi-card .label { font-size: 0.75rem; color: #1e32b4; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-.kpi-card .value { font-size: 1.75rem; font-weight: 700; color: #1b2a72; margin-top: 0.25rem; }
+.kpi-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 0 20px rgba(0,229,200,0.08);
+}
+.kpi-card .label {
+  font-size: 0.7rem; color: var(--teal);
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+}
+.kpi-card .value {
+  font-size: 1.75rem; font-weight: 700;
+  color: var(--text-primary); margin-top: 0.25rem;
+}
 
-/* Followup chips */
+/* ── Followup chips ── */
 .chip {
   display: inline-flex; align-items: center; gap: 0.35rem;
-  padding: 0.4rem 0.75rem; border: 1px solid #e2e8f0;
-  border-radius: 9999px; font-size: 0.75rem; color: #475569;
-  background: white; cursor: pointer; transition: all 0.15s;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 9999px; font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--surface); cursor: pointer; transition: all 0.15s;
 }
-.chip:hover { border-color: #5f83ff; color: #253fe0; background: #eef4ff; }
+.chip:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-dim); }
 
-/* Prose container — markdown output styling */
-.prose-container h1, .prose-container h2, .prose-container h3 { font-weight: 600; color: #1e293b; margin-top: 1rem; margin-bottom: 0.5rem; }
-.prose-container h1 { font-size: 1.25rem; }
-.prose-container h2 { font-size: 1.1rem; }
-.prose-container h3 { font-size: 1rem; }
-.prose-container p { margin-bottom: 0.5rem; line-height: 1.6; }
-.prose-container ul, .prose-container ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
-.prose-container li { margin-bottom: 0.25rem; }
-.prose-container code {
-  background: #f1f5f9; padding: 0.15rem 0.35rem; border-radius: 0.25rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.85em; color: #1e32b4;
+/* ── Prose / markdown output ── */
+.prose-container h1, .prose-container h2, .prose-container h3,
+.prose-content h1, .prose-content h2, .prose-content h3 {
+  font-weight: 600; color: var(--text-primary);
+  margin-top: 1rem; margin-bottom: 0.5rem;
 }
-.prose-container pre {
-  background: #0f172a; color: #e2e8f0;
+.prose-container h1, .prose-content h1 { font-size: 1.25rem; }
+.prose-container h2, .prose-content h2 { font-size: 1.1rem; color: var(--teal); }
+.prose-container h3, .prose-content h3 { font-size: 1rem; }
+.prose-container p, .prose-content p { margin-bottom: 0.5rem; line-height: 1.6; color: var(--text-primary); }
+.prose-container ul, .prose-container ol,
+.prose-content ul, .prose-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
+.prose-container li, .prose-content li { margin-bottom: 0.25rem; color: var(--text-muted); }
+.prose-container code, .prose-content code {
+  background: rgba(0,229,200,0.1); padding: 0.15rem 0.35rem; border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em; color: var(--teal); border: 1px solid var(--border);
+}
+.prose-container pre, .prose-content pre {
+  background: rgba(3,8,20,0.9); color: #e2e8f0; border: 1px solid var(--border);
   padding: 0.875rem 1rem; border-radius: 0.75rem;
   font-size: 0.78rem; overflow-x: auto; margin: 0.75rem 0;
 }
-.prose-container pre code { background: transparent; padding: 0; color: inherit; }
-.prose-container a { color: #3a5cfa; text-decoration: underline; }
-.prose-container a:hover { color: #1e32b4; }
-.prose-container blockquote {
-  border-left: 3px solid #bcd0ff; padding-left: 1rem;
-  color: #64748b; margin: 0.75rem 0;
+.prose-container pre code, .prose-content pre code {
+  background: transparent; padding: 0; color: inherit; border: none;
 }
-.prose-container table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.85rem; }
-.prose-container th { background: #f8fafc; font-weight: 600; text-align: left; padding: 0.5rem; border-bottom: 1px solid #e2e8f0; }
-.prose-container td { padding: 0.5rem; border-bottom: 1px solid #f1f5f9; }
-
-/* Streaming cursor */
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-.animate-blink { animation: blink 1s steps(1) infinite; }
-
-/* Apex follow-up question chips */
-.apex-followup {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  text-align: left;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 5px 10px;
-  font-size: 12px;
-  color: #475569;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-  line-height: 1.4;
+.prose-container a, .prose-content a { color: var(--teal); text-decoration: underline; }
+.prose-container a:hover, .prose-content a:hover { opacity: 0.8; }
+.prose-container blockquote, .prose-content blockquote {
+  border-left: 3px solid var(--teal); padding: 0.5rem 1rem;
+  color: var(--text-muted); margin: 0.75rem 0;
+  background: var(--teal-dim); border-radius: 0 0.5rem 0.5rem 0;
 }
-.apex-followup:hover {
-  background: #eff6ff;
-  border-color: #bcd0ff;
-  color: #1e32b4;
+.prose-container table, .prose-content table {
+  width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.85rem;
 }
-.apex-followup svg { flex-shrink: 0; opacity: 0.6; }
+.prose-container th, .prose-content th {
+  background: rgba(0,229,200,0.08); font-weight: 600; text-align: left;
+  padding: 0.5rem; border-bottom: 1px solid var(--border); color: var(--teal);
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.prose-container td, .prose-content td {
+  padding: 0.5rem; border-bottom: 1px solid rgba(0,229,200,0.06); color: var(--text-primary);
+}
 
-/* Tighter prose inside Apex chat bubbles */
+/* Tighter prose inside chat bubbles */
 .prose.prose-sm p { margin: 0.25rem 0; }
 .prose.prose-sm ul, .prose.prose-sm ol { margin: 0.25rem 0; padding-left: 1.25rem; }
 .prose.prose-sm li { margin: 0.1rem 0; }
-/* prose-content — wraps markdown output in chat messages */
-.prose-content h1, .prose-content h2, .prose-content h3 { font-weight: 600; color: #1e293b; margin-top: 1rem; margin-bottom: 0.5rem; }
-.prose-content h1 { font-size: 1.25rem; }
-.prose-content h2 { font-size: 1.1rem; }
-.prose-content h3 { font-size: 1rem; }
-.prose-content p { margin-bottom: 0.5rem; line-height: 1.6; }
-.prose-content ul, .prose-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
-.prose-content li { margin-bottom: 0.25rem; }
-.prose-content code {
-  background: #f1f5f9; padding: 0.15rem 0.35rem; border-radius: 0.25rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.85em; color: #1e32b4;
+
+/* ── Streaming cursor ── */
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.animate-blink { animation: blink 1s steps(1) infinite; }
+
+/* ── Apex follow-up chips (inside chatbot widget) ── */
+.apex-followup {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  text-align: left;
+  background: rgba(0,229,200,0.05);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 10px;
+  font-size: 12px; color: var(--text-muted);
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  line-height: 1.4;
 }
-.prose-content pre {
-  background: #0f172a; color: #e2e8f0;
-  padding: 0.875rem 1rem; border-radius: 0.75rem;
-  font-size: 0.78rem; overflow-x: auto; margin: 0.75rem 0;
+.apex-followup:hover {
+  background: var(--teal-dim);
+  border-color: var(--teal);
+  color: var(--teal);
 }
-.prose-content pre code { background: transparent; padding: 0; color: inherit; }
-.prose-content a { color: #3a5cfa; text-decoration: underline; }
-.prose-content blockquote { border-left: 3px solid #bcd0ff; padding-left: 1rem; color: #64748b; margin: 0.75rem 0; }
-.prose-content table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.85rem; }
-.prose-content th { background: #f8fafc; font-weight: 600; text-align: left; padding: 0.5rem; border-bottom: 1px solid #e2e8f0; }
-.prose-content td { padding: 0.5rem; border-bottom: 1px solid #f1f5f9; }
+.apex-followup svg { flex-shrink: 0; opacity: 0.6; }

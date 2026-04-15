@@ -1,61 +1,77 @@
-<!-- Shared chat layout for main-area agents (Mitra, Visual, QAD-Zone).
-     Uses WebSocket streaming. The parent div must set x-data with the appropriate wsChat() call. -->
+<!-- Shared dark-theme chat layout for Mitra, Visual agents.
+     Uses Alpine.js wsChat() + WebSocket streaming. -->
 <div class="h-full flex flex-col">
 
-  <!-- ── Header (redesigned, clean text style) ── -->
-  <header class="h-14 shrink-0 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+  <!-- ── Header ── -->
+  <header style="height:56px;background:rgba(5,12,30,0.98);border-bottom:1px solid rgba(0,229,200,0.12)"
+          class="shrink-0 px-6 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <span class="text-sm font-semibold text-slate-700">{{ agent.name }}</span>
-      <span class="text-slate-300">|</span>
-      <span class="text-sm text-slate-400">{{ agent.description }}</span>
+      <div style="width:8px;height:8px;background:#00e5c8;border-radius:50%;
+                  animation:pulse-dot 2s ease-in-out infinite"></div>
+      <span style="font-size:0.875rem;font-weight:600;color:#e8f4ff">{{ agent.name }}</span>
+      <span style="color:rgba(0,229,200,0.25)">|</span>
+      <span style="font-size:0.8rem;color:rgba(180,210,255,0.45)">{{ agent.description }}</span>
     </div>
 
-    <!-- Domain switcher — only rendered when activeDomain is available (Mitra) -->
+    <!-- Domain switcher (Mitra only) -->
     <template x-if="typeof activeDomain !== 'undefined'">
       <div class="relative flex items-center gap-2" data-mitra-domain>
 
-        <!-- Current domain badge -->
         <button @click="domainOpen = !domainOpen"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200
-                       bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition">
-          <i data-lucide="database" class="w-3 h-3 text-slate-400"></i>
+                style="display:flex;align-items:center;gap:6px;padding:5px 12px;
+                       border-radius:8px;border:1px solid rgba(0,229,200,0.2);
+                       background:rgba(0,229,200,0.08);font-size:11px;font-weight:600;
+                       color:#00e5c8;cursor:pointer;transition:all 0.15s"
+                onmouseover="this.style.borderColor='rgba(0,229,200,0.5)';this.style.background='rgba(0,229,200,0.14)'"
+                onmouseout="this.style.borderColor='rgba(0,229,200,0.2)';this.style.background='rgba(0,229,200,0.08)'">
+          <i data-lucide="database" style="width:11px;height:11px"></i>
           <span x-text="activeDomain"></span>
-          <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400 transition-transform"
-             :class="domainOpen ? 'rotate-180' : ''"></i>
+          <i data-lucide="chevron-down" style="width:11px;height:11px;transition:transform 0.2s"
+             :style="domainOpen ? 'transform:rotate(180deg)' : ''"></i>
         </button>
 
-        <!-- Dropdown panel -->
+        <!-- Dropdown -->
         <div x-show="domainOpen" x-transition
-             class="absolute right-0 top-full mt-1 w-64 bg-white rounded-xl shadow-xl
-                    border border-slate-200 py-2 z-50">
+             style="position:absolute;right:0;top:calc(100% + 6px);width:220px;
+                    background:rgba(8,15,32,0.98);border:1px solid rgba(0,229,200,0.2);
+                    border-radius:12px;padding:8px 0;z-index:50;
+                    box-shadow:0 20px 40px rgba(0,0,0,0.5)">
 
-          <div class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <div style="padding:4px 12px 8px;font-size:9px;font-weight:700;letter-spacing:0.1em;
+                      text-transform:uppercase;color:rgba(140,180,230,0.35)">
             Switch QAD Domain
           </div>
 
-          <!-- Quick select common domains -->
           <template x-for="d in ['10USA','INDIA','10EUR','10AUS','TEST']" :key="d">
             <button @click="setDomain(d)"
-                    class="w-full flex items-center justify-between px-3 py-2 text-sm
-                           text-slate-700 hover:bg-slate-50 transition">
+                    style="width:100%;display:flex;align-items:center;justify-content:space-between;
+                           padding:7px 12px;font-size:0.825rem;background:transparent;border:none;
+                           color:rgba(180,210,255,0.7);cursor:pointer;transition:all 0.15s;text-align:left"
+                    onmouseover="this.style.background='rgba(0,229,200,0.06)';this.style.color='#e8f4ff'"
+                    onmouseout="this.style.background='';this.style.color='rgba(180,210,255,0.7)'">
               <span x-text="d"></span>
-              <i x-show="activeDomain === d" data-lucide="check" class="w-3.5 h-3.5 text-brand-600"></i>
+              <i x-show="activeDomain === d" data-lucide="check"
+                 style="width:12px;height:12px;color:#00e5c8"></i>
             </button>
           </template>
 
-          <!-- Custom domain input -->
-          <div class="border-t border-slate-100 mt-1 px-3 pt-2 pb-1">
+          <div style="border-top:1px solid rgba(0,229,200,0.1);margin-top:4px;padding:8px 10px 6px">
             <div class="flex gap-1.5">
               <input x-model="domainInput"
                      @keydown.enter.prevent="setDomain(domainInput)"
                      type="text"
                      placeholder="Custom domain…"
-                     class="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs
-                            focus:outline-none focus:ring-2 focus:ring-brand-500 uppercase" />
+                     style="flex:1;border-radius:7px;border:1px solid rgba(0,229,200,0.15);
+                            background:rgba(0,229,200,0.05);padding:5px 8px;font-size:11px;
+                            color:#e8f4ff;outline:none;text-transform:uppercase"
+                     onfocus="this.style.borderColor='rgba(0,229,200,0.5)'"
+                     onblur="this.style.borderColor='rgba(0,229,200,0.15)'" />
               <button @click="setDomain(domainInput)"
                       :disabled="!domainInput.trim()"
-                      class="px-2 py-1.5 bg-brand-800 hover:bg-brand-900 disabled:opacity-40
-                             text-white rounded-lg text-xs font-medium transition">
+                      style="padding:5px 10px;background:linear-gradient(135deg,#00c9ae,#00e5c8);
+                             border:none;border-radius:7px;font-size:11px;font-weight:700;
+                             color:#060d1a;cursor:pointer;transition:opacity 0.15s"
+                      :style="domainInput.trim() ? 'opacity:1' : 'opacity:0.35;cursor:not-allowed'">
                 Set
               </button>
             </div>
@@ -69,35 +85,47 @@
   </header>
 
   <!-- ── Main area ── -->
-  <div class="flex-1 relative overflow-hidden">
+  <div class="flex-1 relative overflow-hidden" style="background:rgba(6,13,26,0.6)">
 
     <main class="h-full overflow-y-auto px-6 py-6" x-ref="msgs">
 
-      <!-- ── Empty state — original card design, original click pattern ── -->
+      <!-- ── Empty state ── -->
       <template x-if="messages.length === 0">
         <div class="max-w-3xl mx-auto" x-effect="$nextTick(() => window.lucide && lucide.createIcons())">
-          <div class="text-center py-10">
-            <div class="inline-flex relative h-14 w-14 rounded-2xl bg-brand-800 items-center justify-center shadow-lg mb-4">
-              <!-- Inline SVG — not dependent on lucide.createIcons() timing -->
-              <svg xmlns="http://www.w3.org/2000/svg" class="relative z-20 w-7 h-7 text-white" viewBox="0 0 24 24"
-                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <div class="text-center py-12">
+            <div style="display:inline-flex;position:relative;width:60px;height:60px;
+                        border-radius:16px;background:rgba(0,229,200,0.12);
+                        border:1px solid rgba(0,229,200,0.3);align-items:center;
+                        justify-content:center;margin-bottom:16px;
+                        box-shadow:0 0 30px rgba(0,229,200,0.12)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+                   fill="none" stroke="#00e5c8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               </svg>
             </div>
-            <h2 class="text-2xl font-bold text-slate-900">How can I help you today?</h2>
-            <p class="text-slate-500 mt-1">{{ agent.description }}</p>
+            <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:700;
+                       color:#e8f4ff;margin-bottom:8px">
+              How can I help you today?
+            </h2>
+            <p style="color:rgba(180,210,255,0.5);font-size:0.9rem">{{ agent.description }}</p>
           </div>
+
           {% if suggestions %}
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
             {% for q in suggestions %}
             <button @click="send('{{ q|replace("'", "\\'") }}')"
-                    class="text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-brand-400 hover:shadow-md transition">
+                    style="text-align:left;background:rgba(10,20,42,0.8);
+                           border:1px solid rgba(0,229,200,0.14);border-radius:14px;
+                           padding:16px;cursor:pointer;transition:all 0.2s;width:100%"
+                    onmouseover="this.style.borderColor='rgba(0,229,200,0.4)';this.style.background='rgba(0,229,200,0.07)';this.style.transform='translateY(-1px)'"
+                    onmouseout="this.style.borderColor='rgba(0,229,200,0.14)';this.style.background='rgba(10,20,42,0.8)';this.style.transform=''">
               <div class="flex items-start gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-brand-500 mt-0.5 shrink-0" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                     fill="none" stroke="#00e5c8" stroke-width="2" stroke-linecap="round"
+                     stroke-linejoin="round" style="margin-top:2px;flex-shrink:0;opacity:0.8">
                   <path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
                 </svg>
-                <span class="text-sm text-slate-700">{{ q }}</span>
+                <span style="font-size:0.85rem;color:rgba(180,210,255,0.75);line-height:1.5">{{ q }}</span>
               </div>
             </button>
             {% endfor %}
@@ -107,31 +135,52 @@
       </template>
 
       <!-- ── Messages ── -->
-      <div class="max-w-4xl mx-auto space-y-6">
+      <div class="max-w-4xl mx-auto space-y-5">
         <template x-for="(m, i) in messages" :key="i">
           <div>
+            <!-- User message -->
             <template x-if="m.role === 'user'">
               <div class="flex justify-end">
-                <div class="bg-brand-600 text-white rounded-2xl rounded-br-sm px-5 py-3 max-w-[85%] whitespace-pre-wrap" x-text="m.text"></div>
+                <div style="background:linear-gradient(135deg,#00c9ae,#00e5c8 60%,#0d8ef5);
+                            color:#060d1a;border-radius:18px;border-bottom-right-radius:4px;
+                            padding:10px 18px;max-width:85%;font-size:0.875rem;
+                            font-weight:500;line-height:1.5"
+                     x-text="m.text"></div>
               </div>
             </template>
+            <!-- Assistant message -->
             <template x-if="m.role === 'assistant'">
-              <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 prose-container" x-html="m.html"></div>
+              <div style="background:rgba(10,20,42,0.85);border:1px solid rgba(0,229,200,0.14);
+                          border-radius:18px;border-top-left-radius:4px;padding:18px 20px;
+                          box-shadow:0 4px 20px rgba(0,0,0,0.25)"
+                   class="prose-container" x-html="m.html"></div>
             </template>
           </div>
         </template>
 
-        <div x-show="streaming" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-          <div x-show="statusText" class="flex items-center gap-2 text-sm text-brand-600 mb-2">
-            <span class="inline-block w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+        <!-- Streaming bubble -->
+        <div x-show="streaming"
+             style="background:rgba(10,20,42,0.85);border:1px solid rgba(0,229,200,0.2);
+                    border-radius:18px;border-top-left-radius:4px;padding:18px 20px;
+                    box-shadow:0 4px 20px rgba(0,0,0,0.25)">
+          <div x-show="statusText" class="flex items-center gap-2 mb-3"
+               style="font-size:0.8rem;color:#00e5c8">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+                         background:#00e5c8;animation:pulse-dot 1.2s ease-in-out infinite"></span>
             <span x-text="statusText"></span>
           </div>
           <div class="prose-container" x-html="currentHtml"></div>
-          <span class="inline-block w-1.5 h-4 bg-brand-500 animate-pulse ml-0.5 align-middle"></span>
+          <span style="display:inline-block;width:6px;height:16px;background:#00e5c8;
+                       opacity:0.8;animation:blink 1s steps(1) infinite;
+                       margin-left:2px;vertical-align:middle;border-radius:1px"></span>
         </div>
 
-        <div x-show="loading && !streaming" class="flex items-center gap-2 text-slate-500 text-sm">
-          <span class="inline-block w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+        <!-- Thinking indicator -->
+        <div x-show="loading && !streaming"
+             class="flex items-center gap-2"
+             style="color:rgba(180,210,255,0.45);font-size:0.85rem">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+                       background:#00e5c8;animation:pulse-dot 1s ease-in-out infinite"></span>
           <span>Thinking...</span>
         </div>
 
@@ -140,26 +189,38 @@
 
     </main>
 
-    <!-- ── Floating input (redesigned) ── -->
-    <div class="absolute bottom-0 left-0 right-0 z-20 px-4 pb-6 pt-10
-                bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent">
+    <!-- ── Floating input ── -->
+    <div class="absolute bottom-0 left-0 right-0 z-20 px-4 pb-5 pt-12"
+         style="background:linear-gradient(to top, rgba(6,13,26,1) 0%, rgba(6,13,26,0.95) 60%, transparent 100%)">
       <div class="max-w-2xl mx-auto">
         {% block input_extra %}{% endblock %}
         <form @submit.prevent="send()"
-              class="flex items-center bg-white border border-slate-200 rounded-xl shadow-lg px-3 py-2
-                     ring-1 ring-slate-200/60 backdrop-blur-sm">
+              style="display:flex;align-items:center;background:rgba(10,20,42,0.95);
+                     border:1px solid rgba(0,229,200,0.2);border-radius:14px;
+                     padding:6px 6px 6px 16px;
+                     box-shadow:0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(0,229,200,0.05)"
+              onfocusin="this.style.borderColor='rgba(0,229,200,0.45)'"
+              onfocusout="this.style.borderColor='rgba(0,229,200,0.2)'">
           <input x-model="input" type="text"
                  placeholder="Ask {{ agent.name }}..."
                  :disabled="loading"
-                 class="flex-1 text-sm outline-none bg-transparent placeholder:text-slate-400 disabled:opacity-50 py-1" />
+                 style="flex:1;font-size:0.875rem;outline:none;background:transparent;
+                        color:#e8f4ff;padding:6px 0"
+                 x-bind:style="loading ? 'opacity:0.4' : ''" />
           <button type="submit"
                   :disabled="!input.trim() || loading"
-                  class="ml-2 h-8 w-16 rounded-lg bg-brand-800 hover:bg-brand-900
-                         disabled:opacity-40 text-white text-sm flex items-center justify-center shrink-0 transition">
-            <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                  style="height:36px;width:64px;border-radius:10px;border:none;
+                         background:linear-gradient(135deg,#00c9ae,#00e5c8);
+                         color:#060d1a;display:flex;align-items:center;
+                         justify-content:center;cursor:pointer;
+                         flex-shrink:0;transition:all 0.15s;font-weight:700"
+                  :style="(!input.trim() || loading) ? 'opacity:0.35;cursor:not-allowed' : 'opacity:1'"
+                  onmouseover="if(!this.disabled) this.style.transform='scale(1.03)'"
+                  onmouseout="this.style.transform=''">
+            <i data-lucide="send" style="width:14px;height:14px"></i>
           </button>
         </form>
-        <p class="text-center text-xs text-slate-400 mt-2">
+        <p style="text-align:center;font-size:11px;color:rgba(140,180,230,0.28);margin-top:8px">
           Apex AI can make mistakes. Please verify critical ERP modifications.
         </p>
       </div>
@@ -168,3 +229,11 @@
   </div>
 
 </div>
+
+<style>
+@keyframes pulse-dot {
+  0%, 100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.4; transform:scale(0.6); }
+}
+@keyframes blink { 0%, 100% { opacity:1; } 50% { opacity:0; } }
+</style>

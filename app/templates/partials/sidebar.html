@@ -1,55 +1,98 @@
-<aside class="w-64 shrink-0 bg-white border-r border-slate-200 flex flex-col">
+<aside style="width:240px;background:rgba(5,12,30,0.98);border-right:1px solid rgba(0,229,200,0.12)"
+       class="shrink-0 flex flex-col">
 
   <!-- Logo -->
-  <div class="h-14 flex items-center px-5 border-b border-slate-200">
-    <span class="text-lg font-semibold text-brand-900">Apex</span>
+  <div style="height:56px;border-bottom:1px solid rgba(0,229,200,0.1)"
+       class="flex items-center px-5 gap-3">
+    <div style="width:32px;height:32px;background:rgba(0,229,200,0.12);border:1px solid rgba(0,229,200,0.25);border-radius:8px"
+         class="flex items-center justify-center shrink-0">
+      <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+        <circle cx="10" cy="10" r="3.5" stroke="#00e5c8" stroke-width="1.5"/>
+        <path d="M10 3V1M10 19v-2M3 10H1M19 10h-2" stroke="#00e5c8" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M5.05 5.05L3.64 3.64M16.36 16.36l-1.41-1.41M14.95 5.05l1.41-1.41M3.64 16.36l1.41-1.41"
+              stroke="#00e5c8" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+      </svg>
+    </div>
+    <span style="font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:700;letter-spacing:0.06em;color:#e8f4ff">
+      APEX
+    </span>
   </div>
 
   <!-- Nav -->
-  <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-    <div class="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">AI Agents</div>
+  <nav class="flex-1 px-3 py-4 overflow-y-auto" style="scrollbar-width:thin">
+    <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+                color:rgba(140,180,230,0.35);padding:0 8px 10px 8px">
+      AI Agents
+    </div>
     {% for a in agents %}
     <a href="{{ a.route_prefix }}"
-       class="flex items-center gap-3 px-3 py-2.5 rounded transition text-sm
+       style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;
+              margin-bottom:2px;font-size:0.875rem;text-decoration:none;transition:all 0.15s;
               {% if a.key == active %}
-                border-l-4 border-brand-800 bg-slate-50 font-semibold text-slate-800
+                background:rgba(0,229,200,0.12);border-left:2px solid #00e5c8;
+                color:#00e5c8;font-weight:600;padding-left:8px;
               {% else %}
-                border-l-4 border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900
-              {% endif %}">
+                border-left:2px solid transparent;color:rgba(180,210,255,0.55);
+              {% endif %}"
+       onmouseover="if('{{ a.key }}' !== '{{ active }}') { this.style.background='rgba(0,229,200,0.06)'; this.style.color='#e8f4ff'; }"
+       onmouseout="if('{{ a.key }}' !== '{{ active }}') { this.style.background=''; this.style.color='rgba(180,210,255,0.55)'; }">
       <span>{{ a.name }}</span>
+      {% if a.key == active %}
+      <span style="margin-left:auto;width:6px;height:6px;background:#00e5c8;border-radius:50%;
+                   animation:pulse-dot 2s ease-in-out infinite"></span>
+      {% endif %}
     </a>
     {% endfor %}
   </nav>
 
   <!-- Bottom: settings + user -->
-  <div class="border-t border-slate-200 px-4 py-4 space-y-3 text-sm">
+  <div style="border-top:1px solid rgba(0,229,200,0.1);padding:14px 16px;space-y:10px">
 
     <a href="/settings"
-       class="flex items-center gap-2 text-slate-600 hover:text-brand-800 transition cursor-pointer">
-      <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
+       style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;
+              color:rgba(180,210,255,0.45);font-size:0.825rem;text-decoration:none;
+              transition:all 0.15s;margin-bottom:10px"
+       onmouseover="this.style.background='rgba(0,229,200,0.06)';this.style.color='#00e5c8'"
+       onmouseout="this.style.background='';this.style.color='rgba(180,210,255,0.45)'">
+      <i data-lucide="settings" style="width:14px;height:14px;opacity:0.5"></i>
       <span>Settings</span>
     </a>
 
     <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <div class="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-          <i data-lucide="user" class="w-4 h-4 text-slate-500"></i>
+      <div class="flex items-center gap-2 min-w-0">
+        <div style="width:32px;height:32px;border-radius:50%;flex-shrink:0;
+                    background:rgba(0,229,200,0.1);border:1px solid rgba(0,229,200,0.2)"
+             class="flex items-center justify-center">
+          <i data-lucide="user" style="width:14px;height:14px;color:#00e5c8"></i>
         </div>
         <div class="min-w-0">
-          <div class="font-medium text-slate-800 truncate">{{ user.username }}</div>
-          <div class="text-xs text-slate-500 truncate capitalize">
+          <div style="font-size:0.8rem;font-weight:600;color:#e8f4ff" class="truncate">
+            {{ user.username }}
+          </div>
+          <div style="font-size:0.7rem;color:rgba(140,180,230,0.4)" class="truncate capitalize">
             {% for r in user.roles %}{{ r }}{% if not loop.last %}, {% endif %}{% endfor %}
           </div>
         </div>
       </div>
       <form method="post" action="/logout">
         <button type="submit"
-                class="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100 transition"
+                style="padding:6px;border-radius:6px;background:transparent;border:none;
+                       color:rgba(140,180,230,0.35);cursor:pointer;transition:all 0.15s"
+                onmouseover="this.style.background='rgba(239,68,68,0.1)';this.style.color='#fca5a5'"
+                onmouseout="this.style.background='';this.style.color='rgba(140,180,230,0.35)'"
                 title="Sign out">
-          <i data-lucide="log-out" class="w-4 h-4"></i>
+          <i data-lucide="log-out" style="width:14px;height:14px"></i>
         </button>
       </form>
     </div>
 
   </div>
+
 </aside>
+
+<style>
+@keyframes pulse-dot {
+  0%, 100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.4; transform:scale(0.6); }
+}
+</style>
