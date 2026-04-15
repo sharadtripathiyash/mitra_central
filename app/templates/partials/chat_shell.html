@@ -195,10 +195,11 @@
       <div class="max-w-2xl mx-auto">
         {% block input_extra %}{% endblock %}
         <form @submit.prevent="send()"
-              class="relative flex items-center rounded-xl px-3 py-2"
+              class="relative flex items-center rounded-xl"
               style="background:rgba(8,15,32,0.96);
                      border:1px solid rgba(0,229,200,0.22);
-                     box-shadow:0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(0,229,200,0.05)"
+                     box-shadow:0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(0,229,200,0.05);
+                     padding:6px 6px 6px 14px"
               onfocusin="this.style.borderColor='rgba(0,229,200,0.5)'"
               onfocusout="this.style.borderColor='rgba(0,229,200,0.22)'">
 
@@ -211,7 +212,7 @@
           <button type="submit"
                   :disabled="!input.trim() || loading"
                   class="ml-2 shrink-0 flex items-center justify-center rounded-lg transition"
-                  style="height:32px;width:64px;border:none;font-weight:700"
+                  style="height:34px;width:64px;border:none;font-weight:700"
                   :style="(input.trim() && !loading)
                     ? 'background:linear-gradient(135deg,#00c9ae,#00e5c8);color:#060d1a;cursor:pointer;'
                     : 'background:rgba(0,229,200,0.12);color:rgba(0,229,200,0.3);cursor:not-allowed;'"
