@@ -1,0 +1,91 @@
+<!-- ── Global top bar ──────────────────────────────────────────────────────
+     Included by every agent page. Needs sidebarOpen in Alpine scope.       -->
+<header class="shrink-0 flex items-center gap-3 px-4 z-30"
+        style="height:56px;background:rgba(5,12,30,0.98);
+               border-bottom:1px solid rgba(0,229,200,0.14);">
+
+  <!-- Hamburger toggle -->
+  <button @click="sidebarOpen = !sidebarOpen; localStorage.setItem('apex_sb', sidebarOpen ? '1' : '0')"
+          class="flex items-center justify-center rounded-lg transition"
+          style="width:36px;height:36px;background:transparent;border:none;
+                 color:rgba(180,210,255,0.5);cursor:pointer;flex-shrink:0"
+          onmouseover="this.style.background='rgba(0,229,200,0.08)';this.style.color='#00e5c8'"
+          onmouseout="this.style.background='transparent';this.style.color='rgba(180,210,255,0.5)'"
+          title="Toggle sidebar">
+    <i data-lucide="panel-left" style="width:18px;height:18px"></i>
+  </button>
+
+  <!-- Divider -->
+  <div style="width:1px;height:20px;background:rgba(0,229,200,0.12);flex-shrink:0"></div>
+
+  <!-- Brand -->
+  <div class="flex items-center gap-2.5 select-none" style="flex-shrink:0">
+    <div class="flex items-center justify-center"
+         style="width:30px;height:30px;background:rgba(0,229,200,0.1);
+                border:1px solid rgba(0,229,200,0.25);border-radius:8px">
+      <svg viewBox="0 0 20 20" fill="none" width="15" height="15">
+        <circle cx="10" cy="10" r="3.5" stroke="#00e5c8" stroke-width="1.5"/>
+        <path d="M10 3V1M10 19v-2M3 10H1M19 10h-2" stroke="#00e5c8" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M5.05 5.05L3.64 3.64M16.36 16.36l-1.41-1.41M14.95 5.05l1.41-1.41M3.64 16.36l1.41-1.41"
+              stroke="#00e5c8" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+      </svg>
+    </div>
+    <span style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;
+                 letter-spacing:0.08em;color:#e8f4ff">APEX</span>
+  </div>
+
+  <!-- Current agent name -->
+  {% if agent is defined %}
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+    <div style="width:1px;height:16px;background:rgba(0,229,200,0.12)"></div>
+    <span style="font-size:0.8rem;color:rgba(180,210,255,0.4);font-weight:500">
+      {{ agent.name }}
+    </span>
+  </div>
+  {% endif %}
+
+  <!-- Spacer -->
+  <div class="flex-1"></div>
+
+  <!-- Settings -->
+  <a href="/settings"
+     class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition text-xs font-medium"
+     style="color:rgba(180,210,255,0.45);text-decoration:none;border:none"
+     onmouseover="this.style.background='rgba(0,229,200,0.07)';this.style.color='#e8f4ff'"
+     onmouseout="this.style.background='transparent';this.style.color='rgba(180,210,255,0.45)'">
+    <i data-lucide="settings" style="width:13px;height:13px"></i>
+    <span class="hidden sm:inline">Settings</span>
+  </a>
+
+  <!-- Divider -->
+  <div style="width:1px;height:20px;background:rgba(0,229,200,0.12);flex-shrink:0"></div>
+
+  <!-- User avatar + name -->
+  <div class="flex items-center gap-2" style="flex-shrink:0">
+    <div class="flex items-center justify-center"
+         style="width:30px;height:30px;border-radius:50%;flex-shrink:0;
+                background:rgba(0,229,200,0.1);border:1px solid rgba(0,229,200,0.2)">
+      <i data-lucide="user" style="width:13px;height:13px;color:#00e5c8"></i>
+    </div>
+    <div class="hidden sm:block" style="line-height:1.2">
+      <div style="font-size:0.775rem;font-weight:600;color:#e8f4ff">{{ user.username }}</div>
+      <div style="font-size:0.65rem;color:rgba(140,180,230,0.4)" class="capitalize">
+        {% for r in user.roles %}{{ r }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Logout -->
+  <form method="post" action="/logout">
+    <button type="submit"
+            class="flex items-center justify-center rounded-lg transition"
+            style="width:32px;height:32px;background:transparent;border:none;
+                   color:rgba(140,180,230,0.35);cursor:pointer"
+            onmouseover="this.style.background='rgba(239,68,68,0.1)';this.style.color='#fca5a5'"
+            onmouseout="this.style.background='transparent';this.style.color='rgba(140,180,230,0.35)'"
+            title="Sign out">
+      <i data-lucide="log-out" style="width:14px;height:14px"></i>
+    </button>
+  </form>
+
+</header>

@@ -1,11 +1,21 @@
 {% extends "base.html" %}
 {% block title %}{{ agent.name }} · Apex{% endblock %}
 {% block body %}
-<div class="h-full flex">
-  {% include "partials/sidebar.html" %}
-  <div class="flex-1 flex flex-col" x-data="wsChat('{{ agent.route_prefix }}/ws', 'visual')">
-    {% include "partials/chat_shell.html" %}
+
+<div class="h-full flex flex-col"
+     x-data="{ sidebarOpen: localStorage.getItem('apex_sb') !== '0' }">
+
+  {% include "partials/topbar.html" %}
+
+  <div class="flex-1 flex overflow-hidden">
+    {% include "partials/sidebar.html" %}
+
+    <div class="flex-1 flex flex-col overflow-hidden min-w-0"
+         x-data="wsChat('{{ agent.route_prefix }}/ws', 'visual')">
+      {% include "partials/chat_shell.html" %}
+    </div>
   </div>
 </div>
+
 {% include "partials/apex_widget.html" %}
 {% endblock %}

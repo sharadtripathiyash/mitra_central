@@ -1,44 +1,45 @@
 {% extends "base.html" %}
 {% block title %}{{ agent.name }} · Apex{% endblock %}
 {% block body %}
-<div class="h-full flex">
-  {% include "partials/sidebar.html" %}
-  <div class="flex-1 flex flex-col"
-       x-data="mitraAgent('{{ agent.route_prefix }}/ws', '{{ active_domain }}')">
-    {% block header_extra %}{% endblock %}
-    {% include "partials/chat_shell.html" %}
+
+<div class="h-full flex flex-col"
+     x-data="{ sidebarOpen: localStorage.getItem('apex_sb') !== '0' }">
+
+  {% include "partials/topbar.html" %}
+
+  <div class="flex-1 flex overflow-hidden">
+    {% include "partials/sidebar.html" %}
+
+    <div class="flex-1 flex flex-col overflow-hidden min-w-0"
+         x-data="mitraAgent('{{ agent.route_prefix }}/ws', '{{ active_domain }}')">
+      {% include "partials/chat_shell.html" %}
+    </div>
   </div>
 </div>
+
 {% include "partials/apex_widget.html" %}
 
 <script>
 function mitraAgent(wsPath, initialDomain) {
-  // Merge the domain-aware extra payload into the wsChat component
   const base = wsChat(wsPath, 'mitra');
   return {
     ...base,
-
-    // ── Domain state ─────────────────────────────────────────────────────
     activeDomain: initialDomain || '{{ default_domain }}',
     domainInput:  '',
     domainOpen:   false,
 
     init() {
       base.init.call(this);
-      // Always attach domain to every WS send
       this.extraPayload = { domain: this.activeDomain };
-      // Load latest domain from server (in case session already has one)
       fetch('/agents/mitra/domain', { credentials: 'same-origin' })
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d?.domain) { this.activeDomain = d.domain; this.extraPayload = { domain: d.domain }; } })
         .catch(() => {});
-      // Close dropdown on outside click
       document.addEventListener('click', (e) => {
         if (!e.target.closest('[data-mitra-domain]')) this.domainOpen = false;
       });
     },
 
-    // Switch domain — persists to session, takes effect on next question
     setDomain(domain) {
       const d = domain.trim().toUpperCase();
       if (!d) return;

@@ -1,16 +1,22 @@
 {% extends "base.html" %}
 {% block title %}{{ agent.name }} · Apex{% endblock %}
 {% block body %}
-<div class="h-full flex">
-  {% include "partials/sidebar.html" %}
 
-  {# React mounts here — QadZone component takes over the full right panel #}
-  <div id="qadzone-root" class="flex-1 flex flex-col"></div>
+<div class="h-full flex flex-col"
+     x-data="{ sidebarOpen: localStorage.getItem('apex_sb') !== '0' }">
+
+  {% include "partials/topbar.html" %}
+
+  <div class="flex-1 flex overflow-hidden">
+    {% include "partials/sidebar.html" %}
+
+    {# React mounts here — QadZone component takes over the full right panel #}
+    <div id="qadzone-root" class="flex-1 flex flex-col overflow-hidden min-w-0"></div>
+  </div>
 </div>
 
 {% include "partials/apex_widget.html" %}
 
-{# Pass the WS path to React via a global so it works with any prefix #}
 <script>
   window.__QADZONE_WS_PATH__ = "{{ agent.route_prefix }}/ws";
 </script>
