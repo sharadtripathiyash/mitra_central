@@ -1,39 +1,146 @@
-<!-- ── Collapsible sidebar ─────────────────────────────────────────────────
-     Controlled by sidebarOpen in parent Alpine scope.                      -->
+<!-- ── Sidebar — collapsible, controlled by sidebarOpen in parent scope ── -->
 <aside class="shrink-0 flex flex-col overflow-hidden"
-       :style="sidebarOpen
-         ? 'width:220px;opacity:1;transform:translateX(0)'
-         : 'width:0;opacity:0;transform:translateX(-8px)'"
-       style="transition:width 0.22s ease,opacity 0.18s ease,transform 0.22s ease;
-              background:rgba(5,12,30,0.98);border-right:1px solid rgba(0,229,200,0.12)">
+       :style="sidebarOpen ? 'width:220px' : 'width:48px'"
+       style="transition:width 0.22s ease;
+              background:rgba(4,10,26,0.99);
+              border-right:1px solid rgba(0,229,200,0.1);
+              box-shadow: sidebarOpen ? '4px 0 24px rgba(0,0,0,0.3)' : 'none'">
+
+  <!-- Logo + hamburger row -->
+  <div class="flex items-center shrink-0"
+       style="height:56px;border-bottom:1px solid rgba(0,229,200,0.1);padding:0 10px;gap:8px">
+
+    <!-- Hamburger — always visible -->
+    <button @click="sidebarOpen = !sidebarOpen; localStorage.setItem('apex_sb', sidebarOpen ? '1' : '0')"
+            class="flex items-center justify-center rounded-lg transition shrink-0"
+            style="width:30px;height:30px;background:transparent;border:none;
+                   color:rgba(180,210,255,0.4);cursor:pointer"
+            onmouseover="this.style.background='rgba(0,229,200,0.08)';this.style.color='#00e5c8'"
+            onmouseout="this.style.background='transparent';this.style.color='rgba(180,210,255,0.4)'"
+            title="Toggle sidebar">
+      <i data-lucide="panel-left" style="width:16px;height:16px"></i>
+    </button>
+
+    <!-- Logo — only when open -->
+    <div class="flex items-center gap-2 overflow-hidden"
+         :style="sidebarOpen ? 'opacity:1;width:auto' : 'opacity:0;width:0'"
+         style="transition:opacity 0.15s ease;white-space:nowrap">
+      <div class="flex items-center justify-center shrink-0"
+           style="width:28px;height:28px;background:rgba(0,229,200,0.1);
+                  border:1px solid rgba(0,229,200,0.22);border-radius:7px">
+        <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
+          <circle cx="10" cy="10" r="3.5" stroke="#00e5c8" stroke-width="1.5"/>
+          <path d="M10 3V1M10 19v-2M3 10H1M19 10h-2" stroke="#00e5c8" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M5.05 5.05L3.64 3.64M16.36 16.36l-1.41-1.41M14.95 5.05l1.41-1.41M3.64 16.36l1.41-1.41"
+                stroke="#00e5c8" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+        </svg>
+      </div>
+      <span style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;
+                   letter-spacing:0.08em;color:#e8f4ff">APEX</span>
+    </div>
+  </div>
 
   <!-- Nav -->
-  <nav class="flex-1 px-3 py-5 overflow-y-auto" style="scrollbar-width:thin;min-width:220px">
-    <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
-                color:rgba(140,180,230,0.3);padding:0 8px 12px 8px">
+  <nav class="flex-1 overflow-y-auto py-4" style="scrollbar-width:thin"
+       :style="sidebarOpen ? 'padding-left:12px;padding-right:12px' : 'padding-left:8px;padding-right:8px'">
+
+    <!-- Section label -->
+    <div :style="sidebarOpen ? 'opacity:1' : 'opacity:0;height:0;overflow:hidden;margin:0'"
+         style="transition:opacity 0.15s ease;font-size:9px;font-weight:700;letter-spacing:0.12em;
+                text-transform:uppercase;color:rgba(140,180,230,0.3);padding:0 4px 10px 4px">
       AI Agents
     </div>
+
     {% for a in agents %}
     <a href="{{ a.route_prefix }}"
-       style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;
-              margin-bottom:2px;font-size:0.875rem;text-decoration:none;transition:all 0.15s;
-              white-space:nowrap;
+       class="flex items-center rounded-xl transition mb-1"
+       style="gap:10px;font-size:0.875rem;text-decoration:none;transition:all 0.15s;
               {% if a.key == active %}
                 background:rgba(0,229,200,0.1);border-left:2px solid #00e5c8;
-                color:#00e5c8;font-weight:600;padding-left:8px;
+                color:#00e5c8;font-weight:600;
               {% else %}
                 border-left:2px solid transparent;color:rgba(180,210,255,0.5);
               {% endif %}"
+       :style="sidebarOpen ? 'padding:9px 10px;padding-left:8px' : 'padding:9px 10px;justify-content:center'"
        onmouseover="if('{{ a.key }}' !== '{{ active }}') { this.style.background='rgba(0,229,200,0.06)'; this.style.color='#e8f4ff'; }"
-       onmouseout="if('{{ a.key }}' !== '{{ active }}') { this.style.background=''; this.style.color='rgba(180,210,255,0.5)'; }">
-      <span>{{ a.name }}</span>
-      {% if a.key == active %}
-      <span style="margin-left:auto;width:6px;height:6px;background:#00e5c8;border-radius:50%;
-                   flex-shrink:0;animation:pulse-dot 2s ease-in-out infinite"></span>
-      {% endif %}
+       onmouseout="if('{{ a.key }}' !== '{{ active }}') { this.style.background=''; this.style.color='rgba(180,210,255,0.5)'; }"
+       :title="sidebarOpen ? '' : '{{ a.name }}'">
+
+      <!-- Icon placeholder dot -->
+      <span class="shrink-0 flex items-center justify-center"
+            style="width:20px;height:20px">
+        {% if a.key == active %}
+        <span style="width:7px;height:7px;background:#00e5c8;border-radius:50%;
+                     animation:pulse-dot 2s ease-in-out infinite;flex-shrink:0"></span>
+        {% else %}
+        <span style="width:5px;height:5px;background:rgba(180,210,255,0.25);border-radius:50%;flex-shrink:0"></span>
+        {% endif %}
+      </span>
+
+      <!-- Label — hidden when collapsed -->
+      <span class="overflow-hidden"
+            :style="sidebarOpen ? 'opacity:1;max-width:160px' : 'opacity:0;max-width:0'"
+            style="transition:opacity 0.15s ease,max-width 0.2s ease;white-space:nowrap">
+        {{ a.name }}
+      </span>
     </a>
     {% endfor %}
   </nav>
+
+  <!-- Bottom: settings + user -->
+  <div style="border-top:1px solid rgba(0,229,200,0.08);padding:12px 10px">
+
+    <a href="/settings"
+       class="flex items-center rounded-lg transition mb-2"
+       style="gap:8px;padding:7px 8px;color:rgba(180,210,255,0.4);font-size:0.825rem;text-decoration:none"
+       :style="sidebarOpen ? '' : 'justify-content:center;padding:7px'"
+       :title="sidebarOpen ? '' : 'Settings'"
+       onmouseover="this.style.background='rgba(0,229,200,0.06)';this.style.color='#00e5c8'"
+       onmouseout="this.style.background='';this.style.color='rgba(180,210,255,0.4)'">
+      <i data-lucide="settings" style="width:14px;height:14px;flex-shrink:0"></i>
+      <span class="overflow-hidden"
+            :style="sidebarOpen ? 'opacity:1;max-width:160px' : 'opacity:0;max-width:0'"
+            style="transition:opacity 0.15s ease,max-width 0.2s ease;white-space:nowrap">
+        Settings
+      </span>
+    </a>
+
+    <div class="flex items-center"
+         :style="sidebarOpen ? 'gap:8px;justify-content:space-between' : 'justify-content:center'">
+      <div class="flex items-center"
+           :style="sidebarOpen ? 'gap:8px' : ''"
+           style="min-width:0">
+        <div class="flex items-center justify-center shrink-0"
+             style="width:30px;height:30px;border-radius:50%;
+                    background:rgba(0,229,200,0.08);border:1px solid rgba(0,229,200,0.18)">
+          <i data-lucide="user" style="width:13px;height:13px;color:#00e5c8"></i>
+        </div>
+        <div class="overflow-hidden"
+             :style="sidebarOpen ? 'opacity:1;max-width:100px' : 'opacity:0;max-width:0;width:0'"
+             style="transition:opacity 0.15s ease,max-width 0.2s ease;min-width:0">
+          <div style="font-size:0.775rem;font-weight:600;color:#e8f4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            {{ user.username }}
+          </div>
+          <div style="font-size:0.68rem;color:rgba(140,180,230,0.35);white-space:nowrap" class="capitalize">
+            {% for r in user.roles %}{{ r }}{% if not loop.last %}, {% endif %}{% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <form method="post" action="/logout"
+            :style="sidebarOpen ? '' : 'display:none'">
+        <button type="submit"
+                style="padding:5px;border-radius:6px;background:transparent;border:none;
+                       color:rgba(140,180,230,0.3);cursor:pointer;transition:all 0.15s"
+                onmouseover="this.style.background='rgba(239,68,68,0.1)';this.style.color='#fca5a5'"
+                onmouseout="this.style.background='';this.style.color='rgba(140,180,230,0.3)'"
+                title="Sign out">
+          <i data-lucide="log-out" style="width:13px;height:13px"></i>
+        </button>
+      </form>
+    </div>
+
+  </div>
 
 </aside>
 
