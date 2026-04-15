@@ -1,268 +1,273 @@
-{% extends "base.html" %}
-{% block title %}Sign in · Apex{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in · Apex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --teal: #00e5c8;
+      --teal-dim: rgba(0,229,200,0.12);
+      --teal-glow: rgba(0,229,200,0.35);
+      --blue: #0d6ef5;
+      --ink: #060d1a;
+      --surface: rgba(10,20,42,0.82);
+      --border: rgba(0,229,200,0.18);
+      --text-primary: #e8f4ff;
+      --text-muted: rgba(180,210,255,0.55);
+      --text-hint: rgba(140,180,230,0.35);
+    }
 
-  :root {
-    --teal: #00e5c8;
-    --teal-dim: rgba(0,229,200,0.12);
-    --teal-glow: rgba(0,229,200,0.35);
-    --blue: #0d6ef5;
-    --ink: #060d1a;
-    --surface: rgba(10,20,42,0.82);
-    --border: rgba(0,229,200,0.18);
-    --text-primary: #e8f4ff;
-    --text-muted: rgba(180,210,255,0.55);
-    --text-hint: rgba(140,180,230,0.35);
-  }
+    html, body {
+      height: 100%;
+      background: var(--ink);
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+    }
 
-  html, body { height: 100%; background: var(--ink); overflow: hidden; }
+    #bg { position: fixed; inset: 0; z-index: 0; }
 
-  #bg { position: fixed; inset: 0; z-index: 0; }
+    .ambient {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 50% at 15% 50%, rgba(0,229,200,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 45% 40% at 85% 20%, rgba(13,110,245,0.09) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 45% at 70% 80%, rgba(0,229,200,0.05) 0%, transparent 60%);
+    }
 
-  .ambient {
-    position: fixed; inset: 0; z-index: 1; pointer-events: none;
-    background:
-      radial-gradient(ellipse 60% 50% at 15% 50%, rgba(0,229,200,0.07) 0%, transparent 70%),
-      radial-gradient(ellipse 45% 40% at 85% 20%, rgba(13,110,245,0.09) 0%, transparent 65%),
-      radial-gradient(ellipse 50% 45% at 70% 80%, rgba(0,229,200,0.05) 0%, transparent 60%);
-  }
+    .scanlines {
+      position: fixed; inset: 0; z-index: 2; pointer-events: none;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+    }
 
-  .scanlines {
-    position: fixed; inset: 0; z-index: 2; pointer-events: none;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
-  }
+    .page {
+      position: relative; z-index: 10;
+      display: flex; height: 100vh;
+    }
 
-  .page {
-    position: relative; z-index: 10;
-    display: flex; height: 100vh;
-  }
+    /* ── Left brand panel ── */
+    .brand {
+      flex: 1; display: flex; flex-direction: column;
+      justify-content: center; padding: 4rem 5rem; position: relative;
+    }
 
-  /* ── Left brand panel ── */
-  .brand {
-    flex: 1; display: flex; flex-direction: column;
-    justify-content: center; padding: 4rem 5rem; position: relative;
-  }
+    .brand-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--teal-dim); border: 1px solid var(--border);
+      border-radius: 100px; padding: 6px 16px;
+      font-size: 11px; font-weight: 500; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--teal);
+      margin-bottom: 2.5rem; width: fit-content;
+    }
 
-  .brand-badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: var(--teal-dim); border: 1px solid var(--border);
-    border-radius: 100px; padding: 6px 16px;
-    font-size: 11px; font-weight: 500; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--teal);
-    margin-bottom: 2.5rem; width: fit-content;
-    font-family: 'Inter', sans-serif;
-  }
+    .brand-badge-dot {
+      width: 6px; height: 6px; background: var(--teal);
+      border-radius: 50%; animation: pulse-dot 2s ease-in-out infinite;
+    }
 
-  .brand-badge-dot {
-    width: 6px; height: 6px; background: var(--teal);
-    border-radius: 50%; animation: pulse-dot 2s ease-in-out infinite;
-  }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.6); }
+    }
 
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.6); }
-  }
+    .brand-name {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(4rem, 7vw, 7rem);
+      font-weight: 800; line-height: 0.9;
+      letter-spacing: -0.03em; color: var(--text-primary);
+    }
 
-  .brand-name {
-    font-family: 'Syne', 'Inter', sans-serif;
-    font-size: clamp(4rem, 7vw, 7rem);
-    font-weight: 800; line-height: 0.9;
-    letter-spacing: -0.03em; color: var(--text-primary);
-  }
+    .brand-name span {
+      display: block;
+      background: linear-gradient(135deg, var(--teal) 0%, #4af0e2 40%, var(--blue) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
 
-  .brand-name span {
-    display: block;
-    background: linear-gradient(135deg, var(--teal) 0%, #4af0e2 40%, var(--blue) 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  }
+    .brand-tagline {
+      margin-top: 1.5rem; font-size: 1.05rem;
+      color: var(--text-muted); font-weight: 300; line-height: 1.7;
+      max-width: 380px;
+    }
 
-  .brand-tagline {
-    margin-top: 1.5rem; font-size: 1.05rem;
-    color: var(--text-muted); font-weight: 300; line-height: 1.7;
-    max-width: 380px; font-family: 'Inter', sans-serif;
-  }
+    .brand-stats {
+      margin-top: 3.5rem; display: flex; gap: 2.5rem;
+    }
 
-  .brand-stats {
-    margin-top: 3.5rem; display: flex; gap: 2.5rem;
-  }
+    .stat { display: flex; flex-direction: column; gap: 4px; }
 
-  .stat { display: flex; flex-direction: column; gap: 4px; }
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.6rem; font-weight: 700; color: var(--teal); line-height: 1;
+    }
 
-  .stat-num {
-    font-family: 'Syne', 'Inter', sans-serif;
-    font-size: 1.6rem; font-weight: 700; color: var(--teal); line-height: 1;
-  }
+    .stat-label {
+      font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--text-hint); font-weight: 400;
+    }
 
-  .stat-label {
-    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--text-hint); font-weight: 400; font-family: 'Inter', sans-serif;
-  }
+    .brand-divider {
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, var(--border) 30%, var(--border) 70%, transparent);
+      position: absolute; right: 0; top: 10%; height: 80%;
+    }
 
-  .brand-divider {
-    width: 1px;
-    background: linear-gradient(to bottom, transparent, var(--border) 30%, var(--border) 70%, transparent);
-    position: absolute; right: 0; top: 10%; height: 80%;
-  }
+    /* ── Right login panel ── */
+    .login-panel {
+      width: 480px; display: flex;
+      align-items: center; justify-content: center; padding: 2.5rem;
+    }
 
-  /* ── Right login panel ── */
-  .login-panel {
-    width: 480px; display: flex;
-    align-items: center; justify-content: center; padding: 2.5rem;
-  }
+    .card {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px; padding: 2.75rem 2.5rem;
+      position: relative; overflow: hidden;
+      backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+      box-shadow: 0 0 0 1px rgba(0,229,200,0.06), 0 40px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(0,229,200,0.12);
+    }
 
-  .card {
-    width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 24px; padding: 2.75rem 2.5rem;
-    position: relative; overflow: hidden;
-    backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
-    box-shadow: 0 0 0 1px rgba(0,229,200,0.06), 0 40px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(0,229,200,0.12);
-  }
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, var(--teal-glow) 50%, transparent 100%);
+      animation: sweep 3s ease-in-out infinite alternate;
+    }
 
-  .card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent 0%, var(--teal-glow) 50%, transparent 100%);
-    animation: sweep 3s ease-in-out infinite alternate;
-  }
+    @keyframes sweep { from { opacity: 0.4; } to { opacity: 1; } }
 
-  @keyframes sweep { from { opacity: 0.4; } to { opacity: 1; } }
+    .card-corner { position: absolute; width: 60px; height: 60px; pointer-events: none; }
+    .card-corner.tl { top: -1px; left: -1px; border-top: 2px solid var(--teal); border-left: 2px solid var(--teal); border-radius: 24px 0 0 0; }
+    .card-corner.br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--teal); border-right: 2px solid var(--teal); border-radius: 0 0 24px 0; }
 
-  .card-corner { position: absolute; width: 60px; height: 60px; pointer-events: none; }
-  .card-corner.tl { top: -1px; left: -1px; border-top: 2px solid var(--teal); border-left: 2px solid var(--teal); border-radius: 24px 0 0 0; }
-  .card-corner.br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--teal); border-right: 2px solid var(--teal); border-radius: 0 0 24px 0; }
+    .login-logo {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 2rem;
+    }
 
-  .login-logo {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 2rem;
-  }
+    .logo-icon {
+      width: 40px; height: 40px;
+      background: var(--teal-dim); border: 1px solid var(--border);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    }
 
-  .logo-icon {
-    width: 40px; height: 40px;
-    background: var(--teal-dim); border: 1px solid var(--border);
-    border-radius: 10px; display: flex; align-items: center; justify-content: center;
-  }
+    .logo-text {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.25rem; font-weight: 700; letter-spacing: 0.04em; color: var(--text-primary);
+    }
 
-  .logo-text {
-    font-family: 'Syne', 'Inter', sans-serif;
-    font-size: 1.25rem; font-weight: 700; letter-spacing: 0.04em; color: var(--text-primary);
-  }
+    .login-heading {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.65rem; font-weight: 700; color: var(--text-primary);
+      margin-bottom: 0.4rem; line-height: 1.2;
+    }
 
-  .login-heading {
-    font-family: 'Syne', 'Inter', sans-serif;
-    font-size: 1.65rem; font-weight: 700; color: var(--text-primary);
-    margin-bottom: 0.4rem; line-height: 1.2;
-  }
+    .login-sub {
+      font-size: 0.875rem; color: var(--text-muted);
+      margin-bottom: 2rem; font-weight: 300;
+    }
 
-  .login-sub {
-    font-size: 0.875rem; color: var(--text-muted);
-    margin-bottom: 2rem; font-weight: 300; font-family: 'Inter', sans-serif;
-  }
+    /* ── Error alert ── */
+    .alert-error {
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px; padding: 10px 14px;
+      font-size: 0.83rem; color: #fca5a5;
+      margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px;
+    }
 
-  /* ── Error alert ── */
-  .alert-error {
-    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
-    border-radius: 10px; padding: 10px 14px;
-    font-size: 0.83rem; color: #fca5a5;
-    margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px;
-    font-family: 'Inter', sans-serif;
-  }
+    /* ── Fields ── */
+    .field { margin-bottom: 1.25rem; }
 
-  /* ── Fields ── */
-  .field { margin-bottom: 1.25rem; }
+    .field label {
+      display: block; font-size: 11.5px; font-weight: 500;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 0.5rem;
+    }
 
-  .field label {
-    display: block; font-size: 11.5px; font-weight: 500;
-    letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--text-muted); margin-bottom: 0.5rem;
-    font-family: 'Inter', sans-serif;
-  }
+    .input-wrap { position: relative; }
 
-  .input-wrap { position: relative; }
+    .input-icon {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: var(--text-hint); width: 16px; height: 16px;
+      pointer-events: none; transition: color 0.2s;
+    }
 
-  .input-icon {
-    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-    color: var(--text-hint); width: 16px; height: 16px;
-    pointer-events: none; transition: color 0.2s;
-  }
+    .input-wrap:focus-within .input-icon { color: var(--teal); }
 
-  .input-wrap:focus-within .input-icon { color: var(--teal); }
+    .apex-input {
+      width: 100%;
+      background: rgba(5,15,35,0.6);
+      border: 1px solid rgba(0,229,200,0.14);
+      border-radius: 12px;
+      padding: 13px 14px 13px 42px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem; font-weight: 400;
+      color: var(--text-primary); outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      caret-color: var(--teal);
+    }
 
-  .apex-input {
-    width: 100%;
-    background: rgba(5,15,35,0.6);
-    border: 1px solid rgba(0,229,200,0.14);
-    border-radius: 12px;
-    padding: 13px 14px 13px 42px;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.9rem; font-weight: 400;
-    color: var(--text-primary); outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-    caret-color: var(--teal);
-  }
+    .apex-input::placeholder { color: var(--text-hint); }
 
-  .apex-input::placeholder { color: var(--text-hint); }
+    .apex-input:focus {
+      border-color: rgba(0,229,200,0.55);
+      background: rgba(5,15,35,0.85);
+      box-shadow: 0 0 0 3px rgba(0,229,200,0.07), inset 0 0 20px rgba(0,229,200,0.03);
+    }
 
-  .apex-input:focus {
-    border-color: rgba(0,229,200,0.55);
-    background: rgba(5,15,35,0.85);
-    box-shadow: 0 0 0 3px rgba(0,229,200,0.07), inset 0 0 20px rgba(0,229,200,0.03);
-  }
+    /* ── Submit button ── */
+    .btn-login {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, #00c9ae 0%, #00e5c8 50%, #0d8ef5 100%);
+      background-size: 200% 200%;
+      border: none; border-radius: 12px;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.95rem; font-weight: 700; letter-spacing: 0.05em;
+      color: #060d1a; cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(0,229,200,0.22);
+      position: relative; overflow: hidden;
+      animation: btn-gradient 4s ease infinite;
+      margin-top: 0.5rem;
+    }
 
-  /* ── Submit button ── */
-  .btn-login {
-    width: 100%; padding: 14px;
-    background: linear-gradient(135deg, #00c9ae 0%, #00e5c8 50%, #0d8ef5 100%);
-    background-size: 200% 200%;
-    border: none; border-radius: 12px;
-    font-family: 'Syne', 'Inter', sans-serif;
-    font-size: 0.95rem; font-weight: 700; letter-spacing: 0.05em;
-    color: #060d1a; cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.2s;
-    box-shadow: 0 4px 24px rgba(0,229,200,0.22);
-    position: relative; overflow: hidden;
-    animation: btn-gradient 4s ease infinite;
-    margin-top: 0.5rem;
-  }
+    @keyframes btn-gradient {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
 
-  @keyframes btn-gradient {
-    0%   { background-position: 0% 50%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
+    .btn-login::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(to right, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+      transform: translateX(-100%); transition: transform 0.5s ease;
+    }
 
-  .btn-login::after {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(to right, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
-    transform: translateX(-100%); transition: transform 0.5s ease;
-  }
+    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(0,229,200,0.35); }
+    .btn-login:hover::after { transform: translateX(100%); }
+    .btn-login:active { transform: translateY(0); }
 
-  .btn-login:hover { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(0,229,200,0.35); }
-  .btn-login:hover::after { transform: translateX(100%); }
-  .btn-login:active { transform: translateY(0); }
+    /* ── Footer ── */
+    .card-footer {
+      margin-top: 1.75rem; text-align: center;
+      font-size: 11px; color: var(--text-hint); line-height: 1.6;
+    }
 
-  /* ── Footer ── */
-  .card-footer {
-    margin-top: 1.75rem; text-align: center;
-    font-size: 11px; color: var(--text-hint); line-height: 1.6;
-    font-family: 'Inter', sans-serif;
-  }
+    .version-tag {
+      position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+      font-size: 11px; color: var(--text-hint); letter-spacing: 0.08em;
+      z-index: 20;
+    }
 
-  .version-tag {
-    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
-    font-size: 11px; color: var(--text-hint); letter-spacing: 0.08em;
-    z-index: 20; font-family: 'Inter', sans-serif;
-  }
-
-  @media (max-width: 860px) {
-    .brand { display: none; }
-    .login-panel { width: 100%; }
-  }
-</style>
-
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    @media (max-width: 860px) {
+      .brand { display: none; }
+      .login-panel { width: 100%; }
+    }
+  </style>
+</head>
+<body>
 
 <canvas id="bg"></canvas>
 <div class="ambient"></div>
@@ -453,4 +458,5 @@ resize();
 draw();
 </script>
 
-{% endblock %}
+</body>
+</html>
