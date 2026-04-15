@@ -1,43 +1,445 @@
-{% extends "base.html" %}
-{% block title %}Your role · Mitra{% endblock %}
-{% block body %}
-<div class="min-h-full flex items-center justify-center px-4">
-  <div class="w-full max-w-2xl">
-    <h1 class="text-center text-3xl font-bold text-slate-900">What best describes you?</h1>
-    <p class="text-center text-slate-500 mt-2">Pick one or more. We use this to tailor suggested questions and retrieval filters.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your Role · Apex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <form method="post" action="/roles" class="mt-8">
-      {% if error %}
-      <div class="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm border border-red-100 mb-4">{{ error }}</div>
-      {% endif %}
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-data="{ roles: [] }">
-        {% for role, icon, desc in [
-          ('sales',         'trending-up',   'Orders, customers, revenue'),
-          ('purchase',      'shopping-cart', 'Vendors, POs, spend'),
-          ('manufacturing', 'factory',       'WIP, routing, BOMs'),
-          ('other',         'user',          'Finance, IT, management or something else')
-        ] %}
-        <label :class="roles.includes('{{ role }}') ? 'ring-2 ring-brand-500 bg-brand-50' : 'bg-white'"
-               class="relative cursor-pointer rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition block">
-          <input type="checkbox" name="roles" value="{{ role }}" class="sr-only"
-                 @change="roles.includes('{{ role }}') ? roles = roles.filter(r => r !== '{{ role }}') : roles.push('{{ role }}')" />
-          <div class="flex items-center gap-3">
-            <div class="h-10 w-10 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center">
-              <i data-lucide="{{ icon }}" class="w-5 h-5"></i>
-            </div>
-            <div>
-              <div class="font-semibold capitalize text-slate-900">{{ role }}</div>
-              <div class="text-xs text-slate-500">{{ desc }}</div>
-            </div>
+    :root {
+      --teal: #00e5c8;
+      --teal-dim: rgba(0,229,200,0.12);
+      --teal-glow: rgba(0,229,200,0.35);
+      --blue: #0d6ef5;
+      --ink: #060d1a;
+      --surface: rgba(10,20,42,0.82);
+      --border: rgba(0,229,200,0.18);
+      --text-primary: #e8f4ff;
+      --text-muted: rgba(180,210,255,0.55);
+      --text-hint: rgba(140,180,230,0.35);
+    }
+
+    html, body {
+      height: 100%; min-height: 100vh;
+      background: var(--ink);
+      font-family: 'Inter', sans-serif;
+      color: var(--text-primary);
+    }
+
+    #bg { position: fixed; inset: 0; z-index: 0; }
+
+    .ambient {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 50% at 15% 50%, rgba(0,229,200,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 45% 40% at 85% 20%, rgba(13,110,245,0.09) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 45% at 70% 80%, rgba(0,229,200,0.05) 0%, transparent 60%);
+    }
+
+    .scanlines {
+      position: fixed; inset: 0; z-index: 2; pointer-events: none;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+    }
+
+    /* ── Page wrapper ── */
+    .page {
+      position: relative; z-index: 10;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Top logo strip ── */
+    .top-logo {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 2.5rem;
+    }
+
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: var(--teal-dim); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    }
+
+    .logo-text {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.15rem; font-weight: 700; letter-spacing: 0.06em; color: var(--text-primary);
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%; max-width: 640px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px; padding: 2.75rem 2.5rem;
+      position: relative; overflow: hidden;
+      backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+      box-shadow: 0 0 0 1px rgba(0,229,200,0.06), 0 40px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(0,229,200,0.12);
+    }
+
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, var(--teal-glow) 50%, transparent 100%);
+      animation: sweep 3s ease-in-out infinite alternate;
+    }
+
+    @keyframes sweep { from { opacity: 0.4; } to { opacity: 1; } }
+
+    .card-corner { position: absolute; width: 50px; height: 50px; pointer-events: none; }
+    .card-corner.tl { top: -1px; left: -1px; border-top: 2px solid var(--teal); border-left: 2px solid var(--teal); border-radius: 24px 0 0 0; }
+    .card-corner.br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--teal); border-right: 2px solid var(--teal); border-radius: 0 0 24px 0; }
+
+    /* ── Heading ── */
+    .card-heading {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.7rem; font-weight: 700; color: var(--text-primary);
+      text-align: center; margin-bottom: 0.4rem; line-height: 1.2;
+    }
+
+    .card-sub {
+      font-size: 0.875rem; color: var(--text-muted); font-weight: 300;
+      text-align: center; margin-bottom: 2rem; line-height: 1.6;
+    }
+
+    /* ── Error ── */
+    .alert-error {
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px; padding: 10px 14px;
+      font-size: 0.83rem; color: #fca5a5;
+      margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── Role grid ── */
+    .role-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 1.75rem;
+    }
+
+    @media (max-width: 480px) {
+      .role-grid { grid-template-columns: 1fr; }
+      .card { padding: 2rem 1.5rem; }
+    }
+
+    /* ── Role card ── */
+    .role-card {
+      position: relative; cursor: pointer;
+      background: rgba(5,15,35,0.5);
+      border: 1px solid rgba(0,229,200,0.12);
+      border-radius: 16px; padding: 1.25rem 1.25rem;
+      display: flex; align-items: center; gap: 14px;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      user-select: none;
+    }
+
+    .role-card:hover {
+      border-color: rgba(0,229,200,0.35);
+      background: rgba(0,229,200,0.05);
+    }
+
+    .role-card.selected {
+      border-color: var(--teal);
+      background: rgba(0,229,200,0.1);
+      box-shadow: 0 0 0 1px rgba(0,229,200,0.25), inset 0 0 20px rgba(0,229,200,0.04);
+    }
+
+    .role-card input[type="checkbox"] {
+      position: absolute; opacity: 0; pointer-events: none;
+    }
+
+    /* ── Check indicator ── */
+    .role-check {
+      position: absolute; top: 10px; right: 10px;
+      width: 18px; height: 18px;
+      border: 1.5px solid rgba(0,229,200,0.3);
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .role-card.selected .role-check {
+      background: var(--teal);
+      border-color: var(--teal);
+    }
+
+    .role-check svg { display: none; }
+    .role-card.selected .role-check svg { display: block; }
+
+    /* ── Role icon ── */
+    .role-icon {
+      width: 44px; height: 44px; flex-shrink: 0;
+      background: var(--teal-dim); border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .role-card.selected .role-icon {
+      background: rgba(0,229,200,0.2);
+      border-color: rgba(0,229,200,0.4);
+    }
+
+    .role-icon svg { width: 20px; height: 20px; stroke: var(--teal); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ── Role text ── */
+    .role-name {
+      font-weight: 600; font-size: 0.95rem; color: var(--text-primary);
+      text-transform: capitalize; margin-bottom: 2px;
+    }
+
+    .role-desc {
+      font-size: 0.78rem; color: var(--text-muted); font-weight: 300;
+    }
+
+    /* ── Submit button ── */
+    .btn-continue {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, #00c9ae 0%, #00e5c8 50%, #0d8ef5 100%);
+      background-size: 200% 200%;
+      border: none; border-radius: 12px;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.95rem; font-weight: 700; letter-spacing: 0.05em;
+      color: #060d1a; cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
+      box-shadow: 0 4px 24px rgba(0,229,200,0.22);
+      position: relative; overflow: hidden;
+      animation: btn-gradient 4s ease infinite;
+    }
+
+    .btn-continue:disabled {
+      opacity: 0.35; cursor: not-allowed; animation: none;
+    }
+
+    @keyframes btn-gradient {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .btn-continue:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(0,229,200,0.35); }
+    .btn-continue:not(:disabled):active { transform: translateY(0); }
+
+    .version-tag {
+      margin-top: 1.75rem;
+      font-size: 11px; color: var(--text-hint); letter-spacing: 0.08em; text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+<div class="ambient"></div>
+<div class="scanlines"></div>
+
+<div class="page">
+
+  <!-- Logo -->
+  <div class="top-logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+        <circle cx="10" cy="10" r="3.5" stroke="#00e5c8" stroke-width="1.5"/>
+        <path d="M10 3V1M10 19v-2M3 10H1M19 10h-2" stroke="#00e5c8" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M5.05 5.05L3.64 3.64M16.36 16.36l-1.41-1.41M14.95 5.05l1.41-1.41M3.64 16.36l1.41-1.41" stroke="#00e5c8" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+      </svg>
+    </div>
+    <span class="logo-text">APEX</span>
+  </div>
+
+  <!-- Card -->
+  <div class="card">
+    <div class="card-corner tl"></div>
+    <div class="card-corner br"></div>
+
+    <h1 class="card-heading">What best describes you?</h1>
+    <p class="card-sub">Pick one or more. We use this to tailor suggested questions and retrieval filters.</p>
+
+    {% if error %}
+    <div class="alert-error">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/roles" id="roles-form">
+      <div class="role-grid">
+
+        <!-- Sales -->
+        <label class="role-card" onclick="toggleCard(this)">
+          <input type="checkbox" name="roles" value="sales" />
+          <div class="role-check">
+            <svg viewBox="0 0 12 12" fill="none" width="10" height="10">
+              <path d="M2 6l3 3 5-5" stroke="#060d1a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="role-icon">
+            <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          </div>
+          <div>
+            <div class="role-name">Sales</div>
+            <div class="role-desc">Orders, customers, revenue</div>
           </div>
         </label>
-        {% endfor %}
+
+        <!-- Purchase -->
+        <label class="role-card" onclick="toggleCard(this)">
+          <input type="checkbox" name="roles" value="purchase" />
+          <div class="role-check">
+            <svg viewBox="0 0 12 12" fill="none" width="10" height="10">
+              <path d="M2 6l3 3 5-5" stroke="#060d1a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="role-icon">
+            <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          </div>
+          <div>
+            <div class="role-name">Purchase</div>
+            <div class="role-desc">Vendors, POs, spend</div>
+          </div>
+        </label>
+
+        <!-- Manufacturing -->
+        <label class="role-card" onclick="toggleCard(this)">
+          <input type="checkbox" name="roles" value="manufacturing" />
+          <div class="role-check">
+            <svg viewBox="0 0 12 12" fill="none" width="10" height="10">
+              <path d="M2 6l3 3 5-5" stroke="#060d1a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="role-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+          </div>
+          <div>
+            <div class="role-name">Manufacturing</div>
+            <div class="role-desc">WIP, routing, BOMs</div>
+          </div>
+        </label>
+
+        <!-- Other -->
+        <label class="role-card" onclick="toggleCard(this)">
+          <input type="checkbox" name="roles" value="other" />
+          <div class="role-check">
+            <svg viewBox="0 0 12 12" fill="none" width="10" height="10">
+              <path d="M2 6l3 3 5-5" stroke="#060d1a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="role-icon">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div>
+            <div class="role-name">Other</div>
+            <div class="role-desc">Finance, IT, management or something else</div>
+          </div>
+        </label>
+
       </div>
-      <button type="submit"
-              class="mt-8 w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3 rounded-lg transition shadow-lg shadow-brand-600/30">
-        Continue
+
+      <button type="submit" class="btn-continue" id="continue-btn" disabled>
+        Continue →
       </button>
     </form>
   </div>
+
+  <div class="version-tag">Apex v1.0 &nbsp;·&nbsp; QAD Enterprise Edition</div>
 </div>
-{% endblock %}
+
+<script>
+// ── Role card toggle ──────────────────────────────────────────────────────────
+function toggleCard(label) {
+  const cb = label.querySelector('input[type="checkbox"]');
+  cb.checked = !cb.checked;
+  label.classList.toggle('selected', cb.checked);
+  updateBtn();
+}
+
+function updateBtn() {
+  const anyChecked = document.querySelectorAll('input[name="roles"]:checked').length > 0;
+  document.getElementById('continue-btn').disabled = !anyChecked;
+}
+
+// Prevent double-toggle from label default behavior
+document.querySelectorAll('.role-card').forEach(label => {
+  label.addEventListener('click', e => e.preventDefault());
+});
+
+
+// ── Neural network canvas background ─────────────────────────────────────────
+const canvas = document.getElementById('bg');
+const ctx    = canvas.getContext('2d');
+let W, H, nodes;
+
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  const count = Math.floor((W * H) / 14000);
+  nodes = Array.from({ length: count }, () => ({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    vx: (Math.random() - 0.5) * 0.35,
+    vy: (Math.random() - 0.5) * 0.35,
+    r: Math.random() * 1.8 + 0.6,
+    pulse: Math.random() * Math.PI * 2,
+    pulseSpeed: 0.008 + Math.random() * 0.015,
+    type: Math.random() > 0.85 ? 'bright' : 'dim'
+  }));
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  const DIST = 140;
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[i].x - nodes[j].x;
+      const dy = nodes[i].y - nodes[j].y;
+      const d  = Math.sqrt(dx*dx + dy*dy);
+      if (d < DIST) {
+        const alpha = (1 - d / DIST) * 0.18;
+        ctx.beginPath();
+        ctx.moveTo(nodes[i].x, nodes[i].y);
+        ctx.lineTo(nodes[j].x, nodes[j].y);
+        ctx.strokeStyle = `rgba(0,229,200,${alpha})`;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
+  }
+  nodes.forEach(n => {
+    n.pulse += n.pulseSpeed;
+    const glow      = (Math.sin(n.pulse) + 1) / 2;
+    const baseAlpha = n.type === 'bright' ? 0.7 + glow * 0.3 : 0.2 + glow * 0.15;
+    const r         = n.r + (n.type === 'bright' ? glow * 0.8 : 0);
+    if (n.type === 'bright') {
+      const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 4);
+      grad.addColorStop(0, `rgba(0,229,200,${baseAlpha})`);
+      grad.addColorStop(1, 'rgba(0,229,200,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = n.type === 'bright' ? `rgba(0,229,200,${baseAlpha})` : `rgba(0,180,160,${baseAlpha})`;
+    ctx.fill();
+    n.x += n.vx; n.y += n.vy;
+    if (n.x < -20) n.x = W + 20;
+    if (n.x > W+20) n.x = -20;
+    if (n.y < -20) n.y = H + 20;
+    if (n.y > H+20) n.y = -20;
+  });
+  requestAnimationFrame(draw);
+}
+
+window.addEventListener('resize', resize);
+resize();
+draw();
+</script>
+
+</body>
+</html>
