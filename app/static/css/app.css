@@ -44,6 +44,15 @@ textarea:focus {
   border-color: rgba(0,229,200,0.5) !important;
   box-shadow: 0 0 0 2px rgba(0,229,200,0.08);
 }
+/* Exception: bare inputs inside chat containers must stay transparent */
+form[data-chat] input,
+form[data-chat] input:focus {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #e8f4ff !important;
+}
+
 /* Autofill override */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,

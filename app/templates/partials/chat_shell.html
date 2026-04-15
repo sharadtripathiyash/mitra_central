@@ -194,7 +194,7 @@
          style="background:linear-gradient(to top, rgba(6,13,26,1) 0%, rgba(6,13,26,0.95) 60%, transparent 100%)">
       <div class="max-w-2xl mx-auto">
         {% block input_extra %}{% endblock %}
-        <form @submit.prevent="send()"
+        <form @submit.prevent="send()" data-chat
               style="display:flex;align-items:center;background:rgba(10,20,42,0.95);
                      border:1px solid rgba(0,229,200,0.2);border-radius:14px;
                      padding:6px 6px 6px 16px;
