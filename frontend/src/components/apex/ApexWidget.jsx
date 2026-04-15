@@ -22,9 +22,9 @@ function buildSourcesHtml(sources) {
   const file  = top.filename ? escapeHtml(top.filename) : "";
   const score = top.score    ? `<span style="opacity:0.6">${Math.round(top.score * 100)}% match</span>` : "";
   const label = [mod, file, score].filter(Boolean).join(" · ");
-  return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8">
-    <span style="text-transform:uppercase;letter-spacing:.05em;font-size:9px">Source</span>
-    <span style="margin-left:6px;color:#64748b">${label}</span>
+  return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,229,200,0.15);font-size:11px;color:rgba(140,180,230,0.5)">
+    <span style="text-transform:uppercase;letter-spacing:.05em;font-size:9px;color:rgba(0,229,200,0.6)">Source</span>
+    <span style="margin-left:6px">${label}</span>
   </div>`;
 }
 
@@ -58,26 +58,38 @@ function DomainPicker({ onConfirm }) {
   }
 
   return (
-    <div className="p-5 space-y-3">
-      <p className="text-sm text-slate-700 font-medium">What area are you working in?</p>
+    <div className="p-5 space-y-3" style={{ background: "rgba(8,15,32,0.98)" }}>
+      <p className="text-sm font-medium" style={{ color: "rgba(180,210,255,0.7)" }}>What area are you working in?</p>
       <div className="space-y-1">
         {OPTIONS.map((o) => (
-          <label key={o.key} className="flex items-center gap-2.5 cursor-pointer p-2 rounded-lg hover:bg-slate-50 select-none">
+          <label key={o.key}
+            className="flex items-center gap-2.5 cursor-pointer p-2 rounded-lg select-none transition"
+            style={{ color: selected.includes(o.key) ? "#00e5c8" : "rgba(180,210,255,0.6)" }}
+            onMouseOver={e => e.currentTarget.style.background = "rgba(0,229,200,0.06)"}
+            onMouseOut={e => e.currentTarget.style.background = "transparent"}
+          >
             <input
               type="checkbox"
               checked={selected.includes(o.key)}
               onChange={() => toggle(o.key)}
-              className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              style={{ accentColor: "#00e5c8" }}
             />
-            <span className="text-sm text-slate-700">{o.label}</span>
+            <span className="text-sm">{o.label}</span>
           </label>
         ))}
       </div>
       <button
         onClick={() => selected.length && onConfirm(selected)}
         disabled={!selected.length}
-        className={`w-full rounded-lg py-2 text-sm font-medium text-white transition
-          ${selected.length ? "bg-brand-800 hover:bg-brand-900" : "bg-brand-800 opacity-40 cursor-not-allowed"}`}
+        className="w-full rounded-lg py-2 text-sm font-bold transition"
+        style={{
+          background: selected.length
+            ? "linear-gradient(135deg, #00c9ae, #00e5c8)"
+            : "rgba(0,229,200,0.1)",
+          color: selected.length ? "#060d1a" : "rgba(0,229,200,0.3)",
+          border: "none",
+          cursor: selected.length ? "pointer" : "not-allowed",
+        }}
       >
         Continue
       </button>
@@ -90,8 +102,11 @@ function Bubble({ msg }) {
   const isUser = msg.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`rounded-2xl px-4 py-2.5 max-w-[85%] text-sm leading-relaxed
-        ${isUser ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-800"}`}>
+      <div className="rounded-2xl px-4 py-2.5 max-w-[85%] text-sm leading-relaxed"
+        style={isUser
+          ? { background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a", fontWeight: 500 }
+          : { background: "rgba(10,20,42,0.9)", border: "1px solid rgba(0,229,200,0.14)", color: "#e8f4ff" }
+        }>
         <div
           className="prose prose-sm max-w-none"
           dangerouslySetInnerHTML={{ __html: msg.html || escapeHtml(msg.text || "") }}
@@ -254,7 +269,8 @@ export function ApexWidget() {
 
       {/* Panel */}
       {open && (
-        <div className="w-96 h-[600px] bg-white rounded-l-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+        <div className="w-96 h-[600px] rounded-l-2xl shadow-2xl flex flex-col overflow-hidden"
+          style={{ background: "rgba(8,15,32,0.98)", border: "1px solid rgba(0,229,200,0.2)", borderRight: "none" }}>
 
           {/* Header */}
           <div className="h-14 px-4 flex items-center justify-between bg-brand-800 text-white shrink-0">
@@ -280,7 +296,8 @@ export function ApexWidget() {
 
           {/* Messages */}
           {!needsDomain && (
-            <div ref={msgsRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div ref={msgsRef} className="flex-1 overflow-y-auto p-4 space-y-3"
+              style={{ background: "rgba(6,13,26,0.6)" }}>
               {messages.map((m, i) => <Bubble key={i} msg={m} />)}
 
               {/* Streaming bubble */}
@@ -298,7 +315,8 @@ export function ApexWidget() {
 
               {loading && !streaming && (
                 <div className="flex justify-start">
-                  <div className="bg-slate-100 rounded-2xl px-4 py-2.5 text-sm text-slate-500">
+                  <div className="rounded-2xl px-4 py-2.5 text-sm"
+                    style={{ background: "rgba(10,20,42,0.9)", border: "1px solid rgba(0,229,200,0.14)", color: "rgba(180,210,255,0.5)" }}>
                     Thinking…
                   </div>
                 </div>
@@ -308,7 +326,8 @@ export function ApexWidget() {
 
           {/* Input */}
           {!needsDomain && (
-            <div className="p-3 border-t border-slate-200 shrink-0">
+            <div className="p-3 shrink-0"
+              style={{ borderTop: "1px solid rgba(0,229,200,0.12)", background: "rgba(6,13,26,0.8)" }}>
               <div className="flex gap-2">
                 <input
                   ref={inputRef}
@@ -317,12 +336,28 @@ export function ApexWidget() {
                   onKeyDown={handleKeyDown}
                   placeholder="Ask about user guides…"
                   disabled={loading}
-                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                  className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{
+                    background: "rgba(5,15,35,0.8)",
+                    border: "1px solid rgba(0,229,200,0.15)",
+                    color: "#e8f4ff",
+                    opacity: loading ? 0.5 : 1,
+                  }}
+                  onFocus={e => e.target.style.borderColor = "rgba(0,229,200,0.5)"}
+                  onBlur={e => e.target.style.borderColor = "rgba(0,229,200,0.15)"}
                 />
                 <button
                   onClick={() => sendMessage()}
                   disabled={!input.trim() || loading}
-                  className="bg-brand-800 hover:bg-brand-900 disabled:opacity-40 text-white px-3 rounded-lg transition"
+                  className="px-3 rounded-lg transition"
+                  style={{
+                    background: (input.trim() && !loading)
+                      ? "linear-gradient(135deg,#00c9ae,#00e5c8)"
+                      : "rgba(0,229,200,0.12)",
+                    color: (input.trim() && !loading) ? "#060d1a" : "rgba(0,229,200,0.3)",
+                    border: "none",
+                    cursor: (input.trim() && !loading) ? "pointer" : "not-allowed",
+                  }}
                 >
                   <Send size={16} />
                 </button>

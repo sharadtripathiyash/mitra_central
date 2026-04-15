@@ -44,8 +44,8 @@ const DEMO_DATA = {
     ],
     replaceability: 72,
     confidence: 85,
-    businessImpact:  { label: "High",   bg: "bg-red-100",    text: "text-red-700"    },
-    migrationEffort: { label: "Medium", bg: "bg-yellow-100", text: "text-yellow-700" },
+    businessImpact:  { label: "High",   bg: "bg-[rgba(239,68,68,0.15)]",    text: "text-[#fca5a5]"  },
+    migrationEffort: { label: "Medium", bg: "bg-[rgba(234,179,8,0.15)]",  text: "text-[#fcd34d]"  },
     modules: ["Inventory", "GL / Finance", "Manufacturing"],
     docFilename: "MRN_System_Documentation.docx",
     sources: [
@@ -73,8 +73,8 @@ const DEMO_DATA = {
     ],
     replaceability: 65,
     confidence: 90,
-    businessImpact:  { label: "High", bg: "bg-red-100",  text: "text-red-700"  },
-    migrationEffort: { label: "High", bg: "bg-red-100",  text: "text-red-700"  },
+    businessImpact:  { label: "High", bg: "bg-[rgba(239,68,68,0.15)]", text: "text-[#fca5a5]" },
+    migrationEffort: { label: "High", bg: "bg-[rgba(239,68,68,0.15)]", text: "text-[#fca5a5]" },
     modules: ["Cross-module", "Workflow", "Integration"],
     docFilename: "DOA_System_Documentation.docx",
     sources: [
@@ -101,8 +101,8 @@ const DEMO_DATA = {
     ],
     replaceability: 72,
     confidence: 85,
-    businessImpact:  { label: "High",   bg: "bg-red-100",    text: "text-red-700"    },
-    migrationEffort: { label: "Medium", bg: "bg-yellow-100", text: "text-yellow-700" },
+    businessImpact:  { label: "High",   bg: "bg-[rgba(239,68,68,0.15)]",    text: "text-[#fca5a5]"  },
+    migrationEffort: { label: "Medium", bg: "bg-[rgba(234,179,8,0.15)]",  text: "text-[#fcd34d]"  },
     modules: ["Sales", "Inventory", "Customer Service"],
     docFilename: "RTDC_System_Documentation.docx",
     sources: [
@@ -153,11 +153,11 @@ function DemoLoader({ filename }) {
       {/* Spinning ring */}
       <div className="relative h-16 w-16">
         <svg className="animate-spin" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="32" cy="32" r="28" stroke="#e2e8f0" strokeWidth="6" />
-          <path d="M32 4a28 28 0 0 1 28 28" stroke="url(#grad)" strokeWidth="6" strokeLinecap="round" />
+          <circle cx="32" cy="32" r="28" stroke="rgba(0,229,200,0.15)" strokeWidth="6" />
+          <path d="M32 4a28 28 0 0 1 28 28" stroke="url(#gradTeal)" strokeWidth="6" strokeLinecap="round" />
           <defs>
-            <linearGradient id="grad" x1="32" y1="4" x2="60" y2="32" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#6366f1" /><stop offset="1" stopColor="#3b82f6" />
+            <linearGradient id="gradTeal" x1="32" y1="4" x2="60" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#00c9ae" /><stop offset="1" stopColor="#00e5c8" />
             </linearGradient>
           </defs>
         </svg>
@@ -168,10 +168,10 @@ function DemoLoader({ filename }) {
 
       {/* Title */}
       <div className="text-center">
-        <div className="text-base font-bold text-slate-800">
+        <div className="text-base font-bold" style={{ color: "#e8f4ff" }}>
           {done ? "Analysis complete!" : "Analyzing customization…"}
         </div>
-        <div className="text-xs text-slate-500 mt-1">{filename}</div>
+        <div className="text-xs mt-1" style={{ color: "rgba(180,210,255,0.45)" }}>{filename}</div>
       </div>
 
       {/* Step list */}
@@ -180,20 +180,25 @@ function DemoLoader({ filename }) {
           const isActive = i === stepIdx && !done;
           const isDone   = i < stepIdx || done;
           return (
-            <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300
-              ${isActive ? "bg-indigo-50 border border-indigo-200 shadow-sm" : isDone ? "opacity-50" : "opacity-20"}`}>
+            <div key={i}
+              className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300"
+              style={{
+                background: isActive ? "rgba(0,229,200,0.08)" : "transparent",
+                border: isActive ? "1px solid rgba(0,229,200,0.3)" : "1px solid transparent",
+                opacity: isDone ? 0.55 : isActive ? 1 : 0.2,
+              }}>
               <span className="text-base w-5 text-center shrink-0">{isDone || isActive ? s.icon : "○"}</span>
-              <span className={`text-sm ${isActive ? "font-semibold text-indigo-700" : "text-slate-600"}`}>
+              <span className="text-sm" style={{ color: isActive ? "#00e5c8" : "rgba(180,210,255,0.7)", fontWeight: isActive ? 600 : 400 }}>
                 {s.text}
               </span>
               {isDone && !isActive && (
-                <span className="ml-auto text-green-500 text-xs font-bold shrink-0">✓</span>
+                <span className="ml-auto text-xs font-bold shrink-0" style={{ color: "#00e5c8" }}>✓</span>
               )}
               {isActive && (
                 <span className="ml-auto flex gap-0.5 shrink-0">
                   {[0,1,2].map((d) => (
-                    <span key={d} className="inline-block w-1 h-1 rounded-full bg-indigo-400 animate-bounce"
-                      style={{ animationDelay: `${d * 150}ms` }} />
+                    <span key={d} className="inline-block w-1 h-1 rounded-full animate-bounce"
+                      style={{ background: "#00e5c8", animationDelay: `${d * 150}ms` }} />
                   ))}
                 </span>
               )}
@@ -237,9 +242,9 @@ function IconUpgrade() {
 // ── Empty state ───────────────────────────────────────────────────────────────
 function EmptyState({ onSwitch, activeMode }) {
   const cards = [
-    { key: "query",         label: "Search & Ask",    sub: "Ask questions about your custom QAD programs in plain English — get instant answers", icon: <IconSearch />, color: "bg-blue-50 text-blue-600",    activeColor: "border-blue-300 bg-blue-50"     },
-    { key: "documentation", label: "Generate Docs",   sub: "Upload your custom code and get a ready-to-share Word document automatically",        icon: <IconDoc />,    color: "bg-violet-50 text-violet-600", activeColor: "border-violet-300 bg-violet-50"  },
-    { key: "modernisation", label: "Upgrade Analysis",sub: "See what will break and what needs updating when moving to a newer QAD version",       icon: <IconUpgrade />,color: "bg-emerald-50 text-emerald-600",activeColor: "border-emerald-300 bg-emerald-50"},
+    { key: "query",         label: "Search & Ask",    sub: "Ask questions about your custom QAD programs in plain English — get instant answers", icon: <IconSearch />, color: "bg-[rgba(0,229,200,0.1)] text-[#00e5c8]",    activeColor: "border-[rgba(0,229,200,0.5)] bg-[rgba(0,229,200,0.1)]"     },
+    { key: "documentation", label: "Generate Docs",   sub: "Upload your custom code and get a ready-to-share Word document automatically",        icon: <IconDoc />,    color: "bg-[rgba(0,229,200,0.1)] text-[#00e5c8]", activeColor: "border-[rgba(0,229,200,0.5)] bg-[rgba(0,229,200,0.1)]"  },
+    { key: "modernisation", label: "Upgrade Analysis",sub: "See what will break and what needs updating when moving to a newer QAD version",       icon: <IconUpgrade />,color: "bg-[rgba(0,229,200,0.1)] text-[#00e5c8]", activeColor: "border-[rgba(0,229,200,0.5)] bg-[rgba(0,229,200,0.1)]"},
   ];
   return (
     <div className="h-full flex flex-col items-center justify-center px-6 pb-32">
@@ -251,8 +256,8 @@ function EmptyState({ onSwitch, activeMode }) {
             <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
           </svg>
         </div>
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Modernization</h1>
-        <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
+        <h1 className="text-3xl font-bold tracking-tight" style={{ color: "#e8f4ff", fontFamily: "'Syne',sans-serif" }}>Modernization</h1>
+        <p className="mt-2 text-sm max-w-sm mx-auto leading-relaxed" style={{ color: "rgba(180,210,255,0.5)" }}>
           Your custom code knowledge base — search, document, and modernise with AI.
         </p>
       </div>
@@ -261,12 +266,12 @@ function EmptyState({ onSwitch, activeMode }) {
           const isActive = activeMode === c.key;
           return (
             <button key={c.key} onClick={() => onSwitch(c.key)}
-              className={`group flex flex-col text-left rounded-2xl p-5 border-2 transition-all duration-150 ${isActive ? `${c.activeColor} shadow-sm` : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md"}`}>
+              className={`group flex flex-col text-left rounded-2xl p-5 border-2 transition-all duration-150 ${isActive ? `${c.activeColor} shadow-sm` : "bg-[rgba(10,20,42,0.7)] border-[rgba(0,229,200,0.1)] hover:border-[rgba(0,229,200,0.35)]"}`}>
               <div className={`h-10 w-10 rounded-xl ${c.color} shrink-0 flex items-center justify-center mb-3 transition-transform duration-150 ${isActive ? "scale-110" : "group-hover:scale-110"}`}>
                 {c.icon}
               </div>
-              <div className="text-sm font-semibold text-slate-800 mb-1">{c.label}</div>
-              <div className="text-xs text-slate-400 leading-relaxed">{c.sub}</div>
+              <div className="text-sm font-semibold mb-1" style={{ color: "#e8f4ff" }}>{c.label}</div>
+              <div className="text-xs leading-relaxed" style={{ color: "rgba(180,210,255,0.45)" }}>{c.sub}</div>
             </button>
           );
         })}
@@ -282,11 +287,11 @@ function CircleProgress({ value, stroke = "#6366f1", size = 96 }) {
   const offset = circ - (value / 100) * circ;
   return (
     <svg width={size} height={size} className="block">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth="8" />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(0,229,200,0.12)" strokeWidth="8" />
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={stroke} strokeWidth="8"
         strokeDasharray={`${circ}`} strokeDashoffset={offset} strokeLinecap="round"
         style={{ transform:"rotate(-90deg)", transformOrigin:"50% 50%", transition:"stroke-dashoffset 0.6s ease" }} />
-      <text x={size/2} y={size/2} textAnchor="middle" dy="0.35em" fontSize="15" fontWeight="700" fill="#1e293b">
+      <text x={size/2} y={size/2} textAnchor="middle" dy="0.35em" fontSize="15" fontWeight="700" fill="#e8f4ff">
         {value}%
       </text>
     </svg>
@@ -294,27 +299,32 @@ function CircleProgress({ value, stroke = "#6366f1", size = 96 }) {
 }
 
 // ── Summary tab ───────────────────────────────────────────────────────────────
+const cardDark = { background: "rgba(10,20,42,0.85)", border: "1px solid rgba(0,229,200,0.14)", borderRadius: "16px", padding: "20px" };
+const labelDark = { fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(180,210,255,0.45)", marginBottom: "8px" };
+
 function SummaryTab({ data }) {
   return (
     <div className="p-6 space-y-5">
       {/* Executive summary */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Executive Summary</div>
-        <p className="text-slate-700 text-sm leading-relaxed">{data.executiveSummary}</p>
+      <div style={cardDark}>
+        <div style={labelDark}>Executive Summary</div>
+        <p className="text-sm leading-relaxed" style={{ color: "rgba(180,210,255,0.8)" }}>{data.executiveSummary}</p>
         <div className="flex flex-wrap gap-1.5 mt-3">
           {data.modules.map((m) => (
-            <span key={m} className="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-medium">{m}</span>
+            <span key={m} className="text-xs px-2.5 py-0.5 rounded-full font-medium"
+              style={{ background: "rgba(0,229,200,0.1)", border: "1px solid rgba(0,229,200,0.2)", color: "#00e5c8" }}>{m}</span>
           ))}
         </div>
       </div>
 
       {/* Key capabilities */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Key Business Capabilities</div>
+      <div style={cardDark}>
+        <div style={labelDark}>Key Business Capabilities</div>
         <ul className="space-y-2">
           {data.keyCapabilities.map((cap, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-              <span className="mt-0.5 h-4 w-4 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+            <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "rgba(180,210,255,0.75)" }}>
+              <span className="mt-0.5 h-4 w-4 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0"
+                style={{ background: "rgba(0,229,200,0.15)", color: "#00e5c8" }}>{i + 1}</span>
               {cap}
             </li>
           ))}
@@ -322,38 +332,38 @@ function SummaryTab({ data }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col items-center gap-2">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center leading-tight">QAD Adaptive<br/>Replaceability</div>
+        <div className="flex flex-col items-center gap-2 p-4" style={{ ...cardDark, padding: "16px" }}>
+          <div style={{ ...labelDark, textAlign: "center", lineHeight: 1.4 }}>QAD Adaptive<br/>Replaceability</div>
           <CircleProgress value={data.replaceability} stroke="#6366f1" />
-          <div className="text-[11px] text-slate-500 text-center">
+          <div className="text-[11px] text-center" style={{ color: "rgba(180,210,255,0.45)" }}>
             {data.replaceability >= 70 ? "Highly replaceable" : data.replaceability >= 50 ? "Partially replaceable" : "Custom build needed"}
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col items-center gap-2">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center leading-tight">Analysis<br/>Confidence</div>
+        <div className="flex flex-col items-center gap-2 p-4" style={{ ...cardDark, padding: "16px" }}>
+          <div style={{ ...labelDark, textAlign: "center", lineHeight: 1.4 }}>Analysis<br/>Confidence</div>
           <CircleProgress value={data.confidence} stroke="#22c55e" />
-          <div className="text-[11px] text-slate-500 text-center">
+          <div className="text-[11px] text-center" style={{ color: "rgba(180,210,255,0.45)" }}>
             {data.confidence >= 80 ? "High confidence" : data.confidence >= 60 ? "Moderate confidence" : "Low confidence"}
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col items-center gap-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center leading-tight">Business<br/>Impact</div>
+        <div className="flex flex-col items-center gap-3 p-4" style={{ ...cardDark, padding: "16px" }}>
+          <div style={{ ...labelDark, textAlign: "center", lineHeight: 1.4 }}>Business<br/>Impact</div>
           <div className={`mt-3 px-5 py-2 rounded-xl text-sm font-bold ${data.businessImpact.bg} ${data.businessImpact.text}`}>
             {data.businessImpact.label}
           </div>
-          <div className="text-[11px] text-slate-500 text-center leading-relaxed">
+          <div className="text-[11px] text-center leading-relaxed" style={{ color: "rgba(180,210,255,0.45)" }}>
             {data.businessImpact.label === "High" ? "Critical to business operations" : data.businessImpact.label === "Medium" ? "Moderate operational dependency" : "Low operational dependency"}
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col items-center gap-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center leading-tight">Migration<br/>Effort</div>
+        <div className="flex flex-col items-center gap-3 p-4" style={{ ...cardDark, padding: "16px" }}>
+          <div style={{ ...labelDark, textAlign: "center", lineHeight: 1.4 }}>Migration<br/>Effort</div>
           <div className={`mt-3 px-5 py-2 rounded-xl text-sm font-bold ${data.migrationEffort.bg} ${data.migrationEffort.text}`}>
             {data.migrationEffort.label}
           </div>
-          <div className="text-[11px] text-slate-500 text-center leading-relaxed">
+          <div className="text-[11px] text-center leading-relaxed" style={{ color: "rgba(180,210,255,0.45)" }}>
             {data.migrationEffort.label === "High" ? "Significant rework required" : data.migrationEffort.label === "Medium" ? "Moderate development effort" : "Minimal changes needed"}
           </div>
         </div>
@@ -361,19 +371,20 @@ function SummaryTab({ data }) {
 
       {/* Sources */}
       {data.sources?.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">Analysis Sources</div>
+        <div style={cardDark}>
+          <div style={labelDark}>Analysis Sources</div>
           <div className="space-y-2">
             {data.sources.map((s, i) => (
               <div key={i} className="flex items-start gap-2">
-                <span className="text-slate-300 mt-0.5 shrink-0">•</span>
+                <span className="mt-0.5 shrink-0" style={{ color: "rgba(0,229,200,0.4)" }}>•</span>
                 {s.url ? (
                   <a href={s.url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline leading-relaxed">
+                    className="text-xs leading-relaxed hover:underline"
+                    style={{ color: "rgba(99,102,241,0.85)" }}>
                     {s.label}
                   </a>
                 ) : (
-                  <span className="text-xs text-slate-500 leading-relaxed">{s.label}</span>
+                  <span className="text-xs leading-relaxed" style={{ color: "rgba(180,210,255,0.4)" }}>{s.label}</span>
                 )}
               </div>
             ))}
@@ -394,11 +405,18 @@ function DocTab({ custName, data }) {
     setTimeout(() => setEmbedState("done"), 3000);
   }
 
+  const embedBtnStyle = embedState === "done"
+    ? { background: "rgba(34,197,94,0.15)", color: "#86efac", border: "1px solid rgba(34,197,94,0.25)", cursor: "default" }
+    : embedState === "loading"
+    ? { background: "rgba(0,229,200,0.06)", color: "rgba(0,229,200,0.35)", border: "1px solid rgba(0,229,200,0.1)", cursor: "not-allowed" }
+    : { background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a", border: "none", cursor: "pointer" };
+
   return (
     <div className="p-6 space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4" style={cardDark}>
         <div className="flex items-center gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+          <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "rgba(0,229,200,0.1)", color: "#00e5c8" }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -407,12 +425,13 @@ function DocTab({ custName, data }) {
             </svg>
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-800 truncate">{data.docFilename}</div>
-            <div className="text-xs text-slate-500">{data.title} — System Documentation</div>
+            <div className="text-sm font-semibold truncate" style={{ color: "#e8f4ff" }}>{data.docFilename}</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(180,210,255,0.45)" }}>{data.title} — System Documentation</div>
           </div>
         </div>
         <a href={DEMO_DOC_URL(custName)} download={data.docFilename}
-          className="shrink-0 px-4 py-2 bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
+          className="shrink-0 px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
+          style={{ background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a" }}>
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -422,14 +441,15 @@ function DocTab({ custName, data }) {
         </a>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+      <div style={cardDark}>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold text-slate-800">Add to Knowledge Base</div>
-            <div className="text-xs text-slate-500 mt-0.5">Embed this document into the Apex search index</div>
+            <div className="text-sm font-semibold" style={{ color: "#e8f4ff" }}>Add to Knowledge Base</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(180,210,255,0.45)" }}>Embed this document into the Apex search index</div>
           </div>
           <button onClick={handleEmbed} disabled={embedState !== "idle"}
-            className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${embedState === "done" ? "bg-green-100 text-green-700 cursor-default" : embedState === "loading" ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-violet-600 hover:bg-violet-700 text-white"}`}>
+            className="shrink-0 px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
+            style={embedBtnStyle}>
             {embedState === "loading" && (
               <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="13" height="13"
                 viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -454,28 +474,34 @@ function DemoPanel({ custName }) {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="mb-5 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shrink-0">
+        <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: "linear-gradient(135deg,#00c9ae,#00e5c8)" }}>
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-            fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            fill="none" stroke="#060d1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
           </svg>
         </div>
         <div>
-          <div className="text-base font-bold text-slate-800">{data.title}</div>
-          <div className="text-xs text-slate-500">Customization Analysis · {custName}</div>
+          <div className="text-base font-bold" style={{ color: "#e8f4ff" }}>{data.title}</div>
+          <div className="text-xs" style={{ color: "rgba(180,210,255,0.45)" }}>Customization Analysis · {custName}</div>
         </div>
       </div>
 
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit mb-5">
+      <div className="flex gap-1 p-1 rounded-xl w-fit mb-5"
+        style={{ background: "rgba(0,229,200,0.06)", border: "1px solid rgba(0,229,200,0.12)" }}>
         {[{key:"summary",label:"Summary"},{key:"documentation",label:"Documentation"}].map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-5 py-1.5 rounded-lg text-sm font-medium transition ${tab === t.key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+            className="px-5 py-1.5 rounded-lg text-sm font-medium transition"
+            style={tab === t.key
+              ? { background: "rgba(0,229,200,0.15)", color: "#00e5c8", border: "1px solid rgba(0,229,200,0.35)" }
+              : { background: "transparent", color: "rgba(180,210,255,0.5)", border: "1px solid transparent" }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: "rgba(6,13,26,0.6)", border: "1px solid rgba(0,229,200,0.12)" }}>
         {tab === "summary"       && <SummaryTab data={data} />}
         {tab === "documentation" && <DocTab custName={custName} data={data} />}
       </div>
@@ -592,7 +618,7 @@ export function QadZone() {
           </svg><span>${escapeHtml(q)}</span></button>`).join("");
       html += `<div class="mt-2 flex flex-col gap-1">${chips}</div>`;
     }
-    return html || '<div class="text-slate-500 text-sm italic">No response received.</div>';
+    return html || '<div class="text-sm italic" style="color:rgba(180,210,255,0.4)">No response received.</div>';
   }
 
   const sendChat = useCallback((overrideQuestion) => {
@@ -678,19 +704,21 @@ export function QadZone() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <header className="h-14 shrink-0 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+      <header className="h-14 shrink-0 px-6 flex items-center justify-between"
+        style={{ background: "rgba(5,12,30,0.98)", borderBottom: "1px solid rgba(0,229,200,0.14)" }}>
         <div className="flex items-center gap-2.5">
-          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shrink-0">
+          <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: "linear-gradient(135deg,#00c9ae,#00e5c8)" }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              fill="none" stroke="#060d1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <ellipse cx="12" cy="5" rx="9" ry="3"/>
               <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
               <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
             </svg>
           </div>
-          <span className="text-sm font-semibold text-slate-700">Modernization</span>
-          <span className="text-slate-300">|</span>
-          <span className="text-sm text-slate-400 hidden sm:inline">Custom code knowledge base</span>
+          <span className="text-sm font-semibold" style={{ color: "#e8f4ff" }}>Modernization</span>
+          <span style={{ color: "rgba(0,229,200,0.25)" }}>|</span>
+          <span className="text-sm hidden sm:inline" style={{ color: "rgba(180,210,255,0.4)" }}>Custom code knowledge base</span>
         </div>
         <ModeBar mode={mode} onChange={switchMode} />
       </header>
@@ -715,26 +743,36 @@ export function QadZone() {
                 <div key={i}>
                   {m.role === "user" ? (
                     <div className="flex justify-end">
-                      <div className="bg-brand-600 text-white rounded-2xl rounded-br-sm px-5 py-3 max-w-[85%] whitespace-pre-wrap text-sm">{m.text}</div>
+                      <div className="rounded-2xl rounded-br-sm px-5 py-3 max-w-[85%] whitespace-pre-wrap text-sm font-medium"
+                        style={{ background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a" }}>{m.text}</div>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 prose-container" dangerouslySetInnerHTML={{ __html: m.html }} />
+                      <div className="rounded-2xl p-5 prose-container"
+                        style={{ background: "rgba(10,20,42,0.85)", border: "1px solid rgba(0,229,200,0.14)", color: "#e8f4ff" }}
+                        dangerouslySetInnerHTML={{ __html: m.html }} />
                       {m.doc && <DocCard doc={m.doc} onEmbed={handleEmbed} />}
                     </div>
                   )}
                 </div>
               ))}
               {(streaming || (loading && statusText)) && (
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                  {statusText && <div className="flex items-center gap-2 text-sm text-brand-600 mb-2"><span className="inline-block w-2 h-2 rounded-full bg-brand-500 animate-pulse" /><span>{statusText}</span></div>}
-                  {liveHtml && <div className="prose-container" dangerouslySetInnerHTML={{ __html: liveHtml }} />}
-                  {streaming && <span className="inline-block w-1.5 h-4 bg-brand-500 animate-pulse ml-0.5 align-middle" />}
+                <div className="rounded-2xl p-5"
+                  style={{ background: "rgba(10,20,42,0.85)", border: "1px solid rgba(0,229,200,0.14)" }}>
+                  {statusText && (
+                    <div className="flex items-center gap-2 text-sm mb-2" style={{ color: "#00e5c8" }}>
+                      <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: "#00e5c8" }} />
+                      <span>{statusText}</span>
+                    </div>
+                  )}
+                  {liveHtml && <div className="prose-container" style={{ color: "#e8f4ff" }} dangerouslySetInnerHTML={{ __html: liveHtml }} />}
+                  {streaming && <span className="inline-block w-1.5 h-4 animate-pulse ml-0.5 align-middle" style={{ background: "#00e5c8" }} />}
                 </div>
               )}
               {loading && !streaming && !statusText && (
-                <div className="flex items-center gap-2 text-slate-500 text-sm">
-                  <span className="inline-block w-2 h-2 rounded-full bg-brand-500 animate-pulse" /><span>Thinking…</span>
+                <div className="flex items-center gap-2 text-sm" style={{ color: "rgba(180,210,255,0.5)" }}>
+                  <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: "#00e5c8" }} />
+                  <span>Thinking…</span>
                 </div>
               )}
               <div className="h-24" ref={bottomRef} />

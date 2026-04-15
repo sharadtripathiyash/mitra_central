@@ -25,7 +25,35 @@ body {
   background: var(--ink);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
 }
+
+/* ── Dark inputs (prevent browser default white background) ── */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  background-color: rgba(5,15,35,0.8) !important;
+  color: var(--text-primary) !important;
+  border-color: rgba(0,229,200,0.2) !important;
+  color-scheme: dark;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(0,229,200,0.5) !important;
+  box-shadow: 0 0 0 2px rgba(0,229,200,0.08);
+}
+/* Autofill override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(5,15,35,0.95) inset !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  caret-color: var(--text-primary);
+}
+/* Placeholder */
+::placeholder { color: rgba(140,180,230,0.35) !important; opacity: 1; }
 
 /* Subtle grid texture for main app (not login/roles — those are standalone) */
 body::before {

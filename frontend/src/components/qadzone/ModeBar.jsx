@@ -13,8 +13,8 @@ export function ModeBar({ mode, onChange }) {
           onClick={() => onChange(m.key)}
           className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition
             ${mode === m.key
-              ? "bg-blue-50 border-blue-200 text-blue-700"
-              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              ? "bg-[rgba(0,229,200,0.12)] border-[rgba(0,229,200,0.45)] text-[#00e5c8]"
+              : "bg-[rgba(10,20,42,0.6)] border-[rgba(0,229,200,0.1)] text-[rgba(180,210,255,0.5)] hover:border-[rgba(0,229,200,0.3)] hover:text-[#e8f4ff]"
             }`}
         >
           {m.label}
