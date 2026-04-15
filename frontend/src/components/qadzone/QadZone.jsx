@@ -242,36 +242,64 @@ function IconUpgrade() {
 // ── Empty state ───────────────────────────────────────────────────────────────
 function EmptyState({ onSwitch, activeMode }) {
   const cards = [
-    { key: "query",         label: "Search & Ask",    sub: "Ask questions about your custom QAD programs in plain English — get instant answers", icon: <IconSearch />, color: "bg-[rgba(0,229,200,0.1)] text-[#00e5c8]",    activeColor: "border-[rgba(0,229,200,0.5)] bg-[rgba(0,229,200,0.1)]"     },
-    { key: "documentation", label: "Generate Docs",   sub: "Upload your custom code and get a ready-to-share Word document automatically",        icon: <IconDoc />,    color: "bg-[rgba(0,229,200,0.1)] text-[#00e5c8]", activeColor: "border-[rgba(0,229,200,0.5)] bg-[rgba(0,229,200,0.1)]"  },
-    { key: "modernisation", label: "Upgrade Analysis",sub: "See what will break and what needs updating when moving to a newer QAD version",       icon: <IconUpgrade />,color: "bg-[rgba(0,229,200,0.1)] text-[#00e5c8]", activeColor: "border-[rgba(0,229,200,0.5)] bg-[rgba(0,229,200,0.1)]"},
+    { key: "query",         label: "Search & Ask",    sub: "Ask questions about your custom QAD programs in plain English — get instant answers", icon: <IconSearch /> },
+    { key: "documentation", label: "Generate Docs",   sub: "Upload your custom code and get a ready-to-share Word document automatically",        icon: <IconDoc />    },
+    { key: "modernisation", label: "Upgrade Analysis",sub: "See what will break and what needs updating when moving to a newer QAD version",       icon: <IconUpgrade />},
   ];
   return (
     <div className="h-full flex flex-col items-center justify-center px-6 pb-32">
+      {/* Hero icon + title */}
       <div className="text-center mb-10">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 shadow-lg mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
-            fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-5"
+          style={{ background: "rgba(0,229,200,0.1)", border: "1px solid rgba(0,229,200,0.25)", boxShadow: "0 0 32px rgba(0,229,200,0.08)" }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24"
+            fill="none" stroke="#00e5c8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
             <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
           </svg>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight" style={{ color: "#e8f4ff", fontFamily: "'Syne',sans-serif" }}>Modernization</h1>
-        <p className="mt-2 text-sm max-w-sm mx-auto leading-relaxed" style={{ color: "rgba(180,210,255,0.5)" }}>
+        <h1 className="text-2xl font-bold tracking-tight"
+          style={{ color: "#e8f4ff", fontFamily: "'Syne',sans-serif", letterSpacing: "-0.01em" }}>
+          Modernization
+        </h1>
+        <p className="mt-2 text-sm max-w-xs mx-auto leading-relaxed"
+          style={{ color: "rgba(180,210,255,0.45)" }}>
           Your custom code knowledge base — search, document, and modernise with AI.
         </p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
+
+      {/* Mode cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl">
         {cards.map((c) => {
           const isActive = activeMode === c.key;
           return (
             <button key={c.key} onClick={() => onSwitch(c.key)}
-              className={`group flex flex-col text-left rounded-2xl p-5 border-2 transition-all duration-150 ${isActive ? `${c.activeColor} shadow-sm` : "bg-[rgba(10,20,42,0.7)] border-[rgba(0,229,200,0.1)] hover:border-[rgba(0,229,200,0.35)]"}`}>
-              <div className={`h-10 w-10 rounded-xl ${c.color} shrink-0 flex items-center justify-center mb-3 transition-transform duration-150 ${isActive ? "scale-110" : "group-hover:scale-110"}`}>
+              className="group flex flex-col text-left rounded-2xl p-5 transition-all duration-150"
+              style={isActive ? {
+                background: "rgba(0,229,200,0.08)",
+                border: "1.5px solid rgba(0,229,200,0.4)",
+                boxShadow: "0 0 20px rgba(0,229,200,0.06)",
+              } : {
+                background: "rgba(10,20,42,0.6)",
+                border: "1.5px solid rgba(0,229,200,0.08)",
+              }}
+              onMouseOver={e => { if (!isActive) { e.currentTarget.style.borderColor = "rgba(0,229,200,0.25)"; e.currentTarget.style.background = "rgba(10,20,42,0.8)"; }}}
+              onMouseOut={e => { if (!isActive) { e.currentTarget.style.borderColor = "rgba(0,229,200,0.08)"; e.currentTarget.style.background = "rgba(10,20,42,0.6)"; }}}
+            >
+              <div className="h-9 w-9 rounded-xl flex items-center justify-center mb-4 shrink-0"
+                style={isActive
+                  ? { background: "rgba(0,229,200,0.15)", color: "#00e5c8" }
+                  : { background: "rgba(0,229,200,0.07)", color: "rgba(0,229,200,0.6)" }}>
                 {c.icon}
               </div>
-              <div className="text-sm font-semibold mb-1" style={{ color: "#e8f4ff" }}>{c.label}</div>
-              <div className="text-xs leading-relaxed" style={{ color: "rgba(180,210,255,0.45)" }}>{c.sub}</div>
+              <div className="text-sm font-semibold mb-1.5"
+                style={{ color: isActive ? "#e8f4ff" : "rgba(220,235,255,0.8)" }}>
+                {c.label}
+              </div>
+              <div className="text-xs leading-relaxed"
+                style={{ color: "rgba(180,210,255,0.38)" }}>
+                {c.sub}
+              </div>
             </button>
           );
         })}
