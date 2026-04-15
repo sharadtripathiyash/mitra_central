@@ -461,7 +461,7 @@ def collect_chunks_from_docx() -> list[dict[str, Any]]:
                 })
 
         for para in doc.paragraphs:
-            style = (para.style.name or "").lower()
+            style = (para.style.name if para.style else "").lower()
             text = para.text.strip()
             if not text:
                 continue
