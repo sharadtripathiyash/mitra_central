@@ -29,28 +29,32 @@ body {
 }
 
 /* ── Dark inputs (prevent browser default white background) ── */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([data-bare]),
 select,
 textarea {
   background-color: rgba(5,15,35,0.8) !important;
   color: var(--text-primary) !important;
   border-color: rgba(0,229,200,0.2) !important;
   color-scheme: dark;
+  box-sizing: border-box;
 }
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([data-bare]):focus,
 select:focus,
 textarea:focus {
   outline: none;
   border-color: rgba(0,229,200,0.5) !important;
   box-shadow: 0 0 0 2px rgba(0,229,200,0.08);
 }
-/* Exception: bare inputs inside chat containers must stay transparent */
-form[data-chat] input,
-form[data-chat] input:focus {
+/* Bare inputs inside chat/search containers — transparent, no border */
+input[data-bare] {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   color: #e8f4ff !important;
+  outline: none !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: 0 !important;
 }
 
 /* Autofill override */

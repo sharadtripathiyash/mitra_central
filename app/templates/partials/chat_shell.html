@@ -201,11 +201,10 @@
                      box-shadow:0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(0,229,200,0.05)"
               onfocusin="this.style.borderColor='rgba(0,229,200,0.45)'"
               onfocusout="this.style.borderColor='rgba(0,229,200,0.2)'">
-          <input x-model="input" type="text"
+          <input x-model="input" type="text" data-bare
                  placeholder="Ask {{ agent.name }}..."
                  :disabled="loading"
-                 style="flex:1;font-size:0.875rem;outline:none;background:transparent;
-                        color:#e8f4ff;padding:6px 0"
+                 style="font-size:0.875rem;padding:6px 0"
                  x-bind:style="loading ? 'opacity:0.4' : ''" />
           <button type="submit"
                   :disabled="!input.trim() || loading"
