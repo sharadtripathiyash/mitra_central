@@ -731,9 +731,9 @@ export function QadZone() {
   const showEmpty = messages.length === 0 && mode !== "modernisation" && !demoMode && !demoLoading;
 
   return (
-    <div className="flex-1 flex flex-col" style={{ background: "rgba(8,16,36,0.98)" }}>
+    <div className="flex-1 flex flex-col">
       <header className="h-14 shrink-0 px-6 flex items-center justify-between"
-        style={{ background: "rgba(6,14,32,0.98)", borderBottom: "1px solid rgba(0,229,200,0.14)" }}>
+        style={{ background: "rgba(5,11,28,0.98)", borderBottom: "1px solid rgba(0,229,200,0.14)" }}>
         <div className="flex items-center gap-2.5">
           <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: "linear-gradient(135deg,#00c9ae,#00e5c8)" }}>
