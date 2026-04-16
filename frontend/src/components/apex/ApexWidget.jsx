@@ -63,10 +63,8 @@ function DomainPicker({ onConfirm }) {
       <div className="space-y-1">
         {OPTIONS.map((o) => (
           <label key={o.key}
-            className="flex items-center gap-2.5 cursor-pointer p-2 rounded-lg select-none transition"
+            className="flex items-center gap-2.5 cursor-pointer p-2 rounded-lg select-none apex-smooth apex-widget-select-row"
             style={{ color: selected.includes(o.key) ? "#00e5c8" : "rgba(180,210,255,0.6)" }}
-            onMouseOver={e => e.currentTarget.style.background = "rgba(0,229,200,0.06)"}
-            onMouseOut={e => e.currentTarget.style.background = "transparent"}
           >
             <input
               type="checkbox"
@@ -81,7 +79,7 @@ function DomainPicker({ onConfirm }) {
       <button
         onClick={() => selected.length && onConfirm(selected)}
         disabled={!selected.length}
-        className="w-full rounded-lg py-2 text-sm font-bold transition"
+        className="w-full rounded-lg py-2 text-sm font-bold apex-smooth apex-widget-primary-btn"
         style={{
           background: selected.length
             ? "linear-gradient(135deg, #00c9ae, #00e5c8)"
@@ -129,6 +127,7 @@ export function ApexWidget() {
 
   const msgsRef  = useRef(null);
   const inputRef = useRef(null);
+  const panelRef = useRef(null);
   const doneRef  = useRef(false);   // prevents double-finalise
   const domainsRef = useRef([]);    // always-current domains for WS callbacks
 
@@ -158,6 +157,25 @@ export function ApexWidget() {
   useEffect(() => {
     if (open && !needsDomain) setTimeout(() => inputRef.current?.focus(), 120);
   }, [open, needsDomain]);
+
+  // Close panel when clicking outside
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(e) {
+      if (panelRef.current && !panelRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [open]);
 
   // Follow-up chip delegation — use data-apex-followup to scope to Apex only
   useEffect(() => {
@@ -255,7 +273,7 @@ export function ApexWidget() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="bg-brand-800 hover:bg-brand-900 text-white shadow-lg flex items-center justify-center px-2 py-5 rounded-l-lg transition"
+          className="bg-brand-800 text-white shadow-lg flex items-center justify-center px-2 py-5 rounded-l-lg apex-smooth apex-widget-ribbon"
           title="Ask Apex"
         >
           <span
@@ -269,7 +287,7 @@ export function ApexWidget() {
 
       {/* Panel */}
       {open && (
-        <div className="w-96 h-[600px] rounded-l-2xl shadow-2xl flex flex-col overflow-hidden"
+        <div ref={panelRef} className="w-96 h-[600px] rounded-l-2xl shadow-2xl flex flex-col overflow-hidden"
           style={{ background: "rgba(8,15,32,0.98)", border: "1px solid rgba(0,229,200,0.2)", borderRight: "none" }}>
 
           {/* Header */}
@@ -285,7 +303,7 @@ export function ApexWidget() {
               {!needsDomain && (
                 <ModuleDropdown selected={domains} onChange={handleDomainChange} />
               )}
-              <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/10 rounded transition">
+              <button onClick={() => setOpen(false)} className="p-1 rounded apex-smooth apex-widget-icon-btn">
                 <X size={16} />
               </button>
             </div>
@@ -336,7 +354,7 @@ export function ApexWidget() {
                   onKeyDown={handleKeyDown}
                   placeholder="Ask about user guides…"
                   disabled={loading}
-                  className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+                  className="flex-1 rounded-lg px-3 py-2 text-sm outline-none apex-widget-input"
                   style={{
                     background: "rgba(5,15,35,0.8)",
                     border: "1px solid rgba(0,229,200,0.15)",
@@ -349,7 +367,7 @@ export function ApexWidget() {
                 <button
                   onClick={() => sendMessage()}
                   disabled={!input.trim() || loading}
-                  className="px-3 rounded-lg transition"
+                  className="px-3 rounded-lg apex-smooth apex-widget-send"
                   style={{
                     background: (input.trim() && !loading)
                       ? "linear-gradient(135deg,#00c9ae,#00e5c8)"

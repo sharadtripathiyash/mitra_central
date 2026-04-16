@@ -53,17 +53,10 @@
 
     {% for a in agents %}
     <a href="{{ a.route_prefix }}"
-       class="flex items-center rounded-xl transition mb-1"
-       style="gap:10px;font-size:0.875rem;text-decoration:none;transition:all 0.15s;
-              {% if a.key == active %}
-                background:rgba(0,229,200,0.1);border-left:2px solid #00e5c8;
-                color:#00e5c8;font-weight:600;
-              {% else %}
-                border-left:2px solid transparent;color:rgba(180,210,255,0.5);
-              {% endif %}"
+       class="apex-agent-link apex-smooth"
+       data-active="{% if a.key == active %}true{% else %}false{% endif %}"
+       style="gap:10px;font-size:0.875rem"
        :style="sidebarOpen ? 'padding:9px 10px;padding-left:8px' : 'padding:9px 10px;justify-content:center'"
-       onmouseover="if('{{ a.key }}' !== '{{ active }}') { this.style.background='rgba(0,229,200,0.06)'; this.style.color='#e8f4ff'; }"
-       onmouseout="if('{{ a.key }}' !== '{{ active }}') { this.style.background=''; this.style.color='rgba(180,210,255,0.5)'; }"
        :title="sidebarOpen ? '' : '{{ a.name }}'">
 
       <!-- Icon placeholder dot -->
@@ -91,13 +84,11 @@
   <div style="border-top:1px solid rgba(0,229,200,0.22);box-shadow:0 -2px 12px rgba(0,0,0,0.25),0 -1px 0 rgba(0,229,200,0.06);padding:12px 10px">
 
     <a href="/settings"
-       class="flex items-center rounded-lg transition mb-2"
-       style="gap:8px;padding:7px 8px;color:rgba(180,210,255,0.4);font-size:0.825rem;text-decoration:none"
-       :style="sidebarOpen ? '' : 'justify-content:center;padding:7px'"
+       class="apex-settings-link apex-settings-link--sidebar apex-smooth"
+       :style="sidebarOpen ? '' : 'justify-content:center;padding:7px;margin-bottom:10px'"
        :title="sidebarOpen ? '' : 'Settings'"
-       onmouseover="this.style.background='rgba(0,229,200,0.06)';this.style.color='#00e5c8'"
-       onmouseout="this.style.background='';this.style.color='rgba(180,210,255,0.4)'">
-      <i data-lucide="settings" style="width:14px;height:14px;flex-shrink:0"></i>
+       >
+      <i data-lucide="settings" class="apex-settings-icon" style="margin-left:1px"></i>
       <span class="overflow-hidden"
             :style="sidebarOpen ? 'opacity:1;max-width:160px' : 'opacity:0;max-width:0'"
             style="transition:opacity 0.15s ease,max-width 0.2s ease;white-space:nowrap">
