@@ -733,7 +733,7 @@ export function QadZone() {
   const showEmpty = messages.length === 0 && mode !== "modernisation" && !demoMode && !demoLoading;
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col min-h-0">
       <header className="h-14 shrink-0 px-6 flex items-center justify-between"
         style={{ background: "rgba(5,11,28,0.98)", borderBottom: "1px solid rgba(0,229,200,0.22)", boxShadow: "0 2px 12px rgba(0,0,0,0.3),0 1px 0 rgba(0,229,200,0.06)" }}>
         <div className="flex items-center gap-2.5">
