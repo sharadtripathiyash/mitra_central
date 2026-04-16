@@ -753,8 +753,8 @@ export function QadZone() {
         <ModeBar mode={mode} onChange={switchMode} />
       </header>
 
-      <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
-        <main className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 relative" style={{ minHeight: 0 }}>
+        <main className="absolute inset-0 overflow-y-auto">
 
           {showEmpty && <EmptyState onSwitch={switchMode} activeMode={mode} />}
 
