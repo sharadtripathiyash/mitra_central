@@ -528,11 +528,13 @@ function DemoPanel({ custName }) {
         ))}
       </div>
 
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: "rgba(6,13,26,0.6)", border: "1px solid rgba(0,229,200,0.12)" }}>
+      <div style={{ background: "rgba(6,13,26,0.6)", border: "1px solid rgba(0,229,200,0.12)", borderRadius: "16px" }}>
         {tab === "summary"       && <SummaryTab data={data} />}
         {tab === "documentation" && <DocTab custName={custName} data={data} />}
       </div>
+
+      {/* bottom spacer so last card clears the viewport */}
+      <div className="h-10" />
     </div>
   );
 }
@@ -751,8 +753,8 @@ export function QadZone() {
         <ModeBar mode={mode} onChange={switchMode} />
       </header>
 
-      <div className="flex-1 relative overflow-hidden">
-        <main className="h-full overflow-y-auto">
+      <div className="flex-1 relative overflow-hidden" style={{ minHeight: 0 }}>
+        <main className="h-full overflow-y-auto" style={{ minHeight: 0 }}>
 
           {showEmpty && <EmptyState onSwitch={switchMode} activeMode={mode} />}
 
