@@ -18,12 +18,7 @@
       <div class="relative flex items-center gap-2" data-mitra-domain>
 
         <button @click="domainOpen = !domainOpen"
-                style="display:flex;align-items:center;gap:6px;padding:5px 12px;
-                       border-radius:8px;border:1px solid rgba(0,229,200,0.2);
-                       background:rgba(0,229,200,0.08);font-size:11px;font-weight:600;
-                       color:#00e5c8;cursor:pointer;transition:all 0.15s"
-                onmouseover="this.style.borderColor='rgba(0,229,200,0.5)';this.style.background='rgba(0,229,200,0.14)'"
-                onmouseout="this.style.borderColor='rgba(0,229,200,0.2)';this.style.background='rgba(0,229,200,0.08)'">
+          class="apex-domain-trigger apex-smooth">
           <i data-lucide="database" style="width:11px;height:11px"></i>
           <span x-text="activeDomain"></span>
           <i data-lucide="chevron-down" style="width:11px;height:11px;transition:transform 0.2s"
@@ -44,11 +39,7 @@
 
           <template x-for="d in ['10USA','INDIA','10EUR','10AUS','TEST']" :key="d">
             <button @click="setDomain(d)"
-                    style="width:100%;display:flex;align-items:center;justify-content:space-between;
-                           padding:7px 12px;font-size:0.825rem;background:transparent;border:none;
-                           color:rgba(180,210,255,0.7);cursor:pointer;transition:all 0.15s;text-align:left"
-                    onmouseover="this.style.background='rgba(0,229,200,0.06)';this.style.color='#e8f4ff'"
-                    onmouseout="this.style.background='';this.style.color='rgba(180,210,255,0.7)'">
+                  class="apex-domain-option apex-smooth">
               <span x-text="d"></span>
               <i x-show="activeDomain === d" data-lucide="check"
                  style="width:12px;height:12px;color:#00e5c8"></i>
@@ -114,11 +105,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
             {% for q in suggestions %}
             <button @click="send('{{ q|replace("'", "\\'") }}')"
-                    style="text-align:left;background:rgba(10,20,42,0.8);
-                           border:1px solid rgba(0,229,200,0.14);border-radius:14px;
-                           padding:16px;cursor:pointer;transition:all 0.2s;width:100%"
-                    onmouseover="this.style.borderColor='rgba(0,229,200,0.4)';this.style.background='rgba(0,229,200,0.07)';this.style.transform='translateY(-1px)'"
-                    onmouseout="this.style.borderColor='rgba(0,229,200,0.14)';this.style.background='rgba(10,20,42,0.8)';this.style.transform=''">
+                  class="apex-suggestion-card apex-smooth">
               <div class="flex items-start gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                      fill="none" stroke="#00e5c8" stroke-width="2" stroke-linecap="round"
@@ -211,14 +198,12 @@
 
           <button type="submit"
                   :disabled="!input.trim() || loading"
-                  class="ml-2 shrink-0 flex items-center justify-center rounded-lg transition"
-                  style="height:32px;width:64px;border:none;font-weight:700"
+                  class="ml-2 shrink-0 h-9 w-14 flex items-center justify-center rounded-full shadow-lg apex-send-btn apex-smooth"
                   :style="(input.trim() && !loading)
-                    ? 'background:linear-gradient(135deg,#00c9ae,#00e5c8);color:#060d1a;cursor:pointer;'
-                    : 'background:rgba(0,229,200,0.15);color:rgba(0,229,200,0.35);cursor:not-allowed;'"
-                  onmouseover="if(!this.disabled) this.style.opacity='0.9'"
-                  onmouseout="this.style.opacity='1'">
-            <i data-lucide="send" style="width:14px;height:14px"></i>
+                    ? 'background:#19d8c5;color:#062018;cursor:pointer;'
+                    : 'background:rgba(0,229,200,0.18);color:rgba(0,229,200,0.45);cursor:not-allowed;'"
+                  >
+            <i data-lucide="send" style="width:15px;height:15px"></i>
           </button>
         </form>
 

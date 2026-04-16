@@ -17,6 +17,15 @@
   --text-primary: #e8f4ff;
   --text-muted:   rgba(180,210,255,0.55);
   --text-hint:    rgba(140,180,230,0.30);
+  --settings-link-color: rgba(180,210,255,0.45);
+  --settings-link-hover-bg: rgba(0,229,200,0.06);
+  --settings-link-hover-color: #00e5c8;
+  --settings-sidebar-gap: 14px;
+  --settings-sidebar-pad: 7px 10px 8px 8px;
+  --settings-sidebar-margin-bottom: 14px;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-duration: 260ms;
+  --motion-delay: 180ms;
 }
 
 /* ── Base ── */
@@ -26,6 +35,13 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apex-smooth {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 /* ── Dark inputs (prevent browser default white background) ── */
@@ -207,12 +223,204 @@ body::before {
   border: 1px solid var(--border);
   border-radius: 8px; padding: 5px 10px;
   font-size: 12px; color: var(--text-muted);
-  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration) var(--motion-ease),
+    border-color var(--motion-duration) var(--motion-ease),
+    color var(--motion-duration) var(--motion-ease),
+    transform var(--motion-duration) var(--motion-ease);
+  transition-delay: var(--motion-delay);
   line-height: 1.4;
 }
 .apex-followup:hover {
   background: var(--teal-dim);
   border-color: var(--teal);
   color: var(--teal);
+  transform: translateX(1px);
 }
 .apex-followup svg { flex-shrink: 0; opacity: 0.6; }
+
+/* ── Apex assistant (React widget) motion helpers ── */
+.apex-widget-ribbon:hover {
+  background: #1b2a72 !important;
+}
+
+.apex-widget-select-row:hover {
+  background: rgba(0,229,200,0.06);
+}
+
+.apex-widget-primary-btn:enabled:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0,229,200,0.3);
+}
+
+.apex-widget-icon-btn:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.apex-widget-input {
+  transition:
+    border-color var(--motion-duration) var(--motion-ease),
+    box-shadow var(--motion-duration) var(--motion-ease),
+    opacity var(--motion-duration) var(--motion-ease);
+  transition-delay: var(--motion-delay);
+}
+
+.apex-widget-send:enabled:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0,229,200,0.26);
+}
+
+.apex-module-trigger:hover {
+  background: rgba(255,255,255,0.18) !important;
+}
+
+.apex-module-option:hover {
+  background: rgba(0,229,200,0.06) !important;
+}
+
+.apex-module-clear:hover {
+  color: rgba(180,210,255,0.8) !important;
+}
+
+/* ── Shared motion system ── */
+.apex-smooth {
+  transition:
+    background-color var(--motion-duration) var(--motion-ease),
+    color var(--motion-duration) var(--motion-ease),
+    border-color var(--motion-duration) var(--motion-ease),
+    box-shadow var(--motion-duration) var(--motion-ease),
+    transform var(--motion-duration) var(--motion-ease),
+    opacity var(--motion-duration) var(--motion-ease);
+  transition-delay: var(--motion-delay);
+}
+
+.apex-smooth:hover,
+.apex-smooth:focus-visible,
+.apex-smooth:active {
+  transition-delay: 0ms;
+}
+
+/* ── Sidebar agent links ── */
+.apex-agent-link {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  margin-bottom: 4px;
+  border-left: 2px solid transparent;
+  color: rgba(180,210,255,0.5);
+  text-decoration: none;
+}
+
+.apex-agent-link[data-active="true"] {
+  background: rgba(0,229,200,0.1);
+  border-left-color: #00e5c8;
+  color: #00e5c8;
+  font-weight: 600;
+}
+
+.apex-agent-link[data-active="false"]:hover {
+  background: rgba(0,229,200,0.06);
+  color: #e8f4ff;
+  transform: translateX(2px);
+}
+
+/* ── Domain switch controls ── */
+.apex-domain-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,229,200,0.2);
+  background: rgba(0,229,200,0.08);
+  font-size: 11px;
+  font-weight: 600;
+  color: #00e5c8;
+  cursor: pointer;
+}
+
+.apex-domain-trigger:hover {
+  border-color: rgba(0,229,200,0.5);
+  background: rgba(0,229,200,0.14);
+}
+
+.apex-domain-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  font-size: 0.825rem;
+  background: transparent;
+  border: none;
+  color: rgba(180,210,255,0.7);
+  cursor: pointer;
+  text-align: left;
+}
+
+.apex-domain-option:hover {
+  background: rgba(0,229,200,0.06);
+  color: #e8f4ff;
+}
+
+/* ── Prompt suggestion cards ── */
+.apex-suggestion-card {
+  text-align: left;
+  background: rgba(10,20,42,0.8);
+  border: 1px solid rgba(0,229,200,0.14);
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.apex-suggestion-card:hover {
+  border-color: rgba(0,229,200,0.4);
+  background: rgba(0,229,200,0.07);
+  transform: translateY(-1px);
+}
+
+/* ── Chat send button ── */
+.apex-send-btn:hover:enabled {
+  opacity: 0.92;
+}
+
+.apex-send-btn:active:enabled {
+  transform: translateY(1px);
+}
+
+/* ── Shared settings link styles (sidebar + topbar) ── */
+.apex-settings-link {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  color: var(--settings-link-color);
+}
+
+.apex-settings-link:hover {
+  background: var(--settings-link-hover-bg);
+  color: var(--settings-link-hover-color);
+}
+
+.apex-settings-link .apex-settings-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.apex-settings-link--sidebar {
+  gap: var(--settings-sidebar-gap);
+  padding: var(--settings-sidebar-pad);
+  margin-bottom: var(--settings-sidebar-margin-bottom);
+  font-size: 0.825rem;
+}
+
+.apex-settings-link--topbar {
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}

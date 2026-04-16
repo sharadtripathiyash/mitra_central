@@ -37,10 +37,8 @@ export function ModuleDropdown({ selected, onChange }) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition"
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium apex-smooth apex-module-trigger"
         style={{ background: "rgba(255,255,255,0.1)", color: "white", border: "none" }}
-        onMouseOver={e => e.currentTarget.style.background = "rgba(255,255,255,0.18)"}
-        onMouseOut={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
         title="Switch module"
       >
         <span className="max-w-[120px] truncate">
@@ -69,11 +67,9 @@ export function ModuleDropdown({ selected, onChange }) {
               <button
                 key={d.key}
                 onClick={() => toggle(d.key)}
-                className="w-full flex items-center justify-between px-3 py-2 text-sm transition"
+                className="w-full flex items-center justify-between px-3 py-2 text-sm apex-smooth apex-module-option"
                 style={{ background: "transparent", border: "none", cursor: "pointer",
                          color: active ? "#00e5c8" : "rgba(180,210,255,0.65)", textAlign: "left" }}
-                onMouseOver={e => e.currentTarget.style.background = "rgba(0,229,200,0.06)"}
-                onMouseOut={e => e.currentTarget.style.background = "transparent"}
               >
                 <span>{d.label}</span>
                 {active && <Check size={14} style={{ color: "#00e5c8" }} />}
@@ -83,11 +79,9 @@ export function ModuleDropdown({ selected, onChange }) {
           <div style={{ borderTop: "1px solid rgba(0,229,200,0.1)", marginTop: "4px", paddingTop: "4px" }}>
             <button
               onClick={() => { onChange([]); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs transition"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs apex-smooth apex-module-clear"
               style={{ background: "transparent", border: "none", cursor: "pointer",
                        color: "rgba(180,210,255,0.4)" }}
-              onMouseOver={e => e.currentTarget.style.color = "rgba(180,210,255,0.8)"}
-              onMouseOut={e => e.currentTarget.style.color = "rgba(180,210,255,0.4)"}
             >
               <X size={11} />
               Clear filters (search all)
