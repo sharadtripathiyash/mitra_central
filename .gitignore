@@ -17,4 +17,3 @@ logs/
 dump.rdb
 node_modules/
 app/static/js/dist/
-app/static/downloads/
