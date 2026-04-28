@@ -135,3 +135,31 @@ async def demo_embed(request: Request):
     if not user:
         return JSONResponse({"error": "unauthenticated"}, status_code=401)
     return JSONResponse({"ok": True})
+
+
+@router.get("/demo-blueprint/{name}")
+async def demo_blueprint(name: str, request: Request):
+    """Serve a pre-built migration blueprint .docx (companion to demo-doc).
+
+    Currently only MRN ships a blueprint; DOA/RTDC return 404 until their
+    blueprints are authored. The frontend hides the second download card
+    when no blueprint exists for the demo module.
+    """
+    user = request.session.get("user")
+    if not user:
+        return JSONResponse({"error": "unauthenticated"}, status_code=401)
+
+    safe_name = re.sub(r"[^A-Z0-9_]", "", name.upper())
+    if not safe_name:
+        return JSONResponse({"error": "invalid name"}, status_code=400)
+
+    doc_path = os.path.join("app", "static", "downloads", f"{safe_name}_Migration_Blueprint.docx")
+    if not os.path.exists(doc_path):
+        return JSONResponse({"error": "Migration blueprint not available for this module yet"}, status_code=404)
+
+    filename = f"{safe_name}_Migration_Blueprint.docx"
+    return FileResponse(
+        doc_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=filename,
+    )

@@ -21,10 +21,11 @@ import { DocCard } from "../shared/DocCard";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { renderMarkdown, escapeHtml, buildWsUrl } from "../../utils/helpers";
 
-const WS_PATH        = window.__QADZONE_WS_PATH__ || "/agents/qadzone/ws";
-const EMBED_URL      = "/agents/qadzone/embed";
-const DEMO_EMBED_URL = "/agents/qadzone/demo-embed";
-const DEMO_DOC_URL   = (name) => `/agents/qadzone/demo-doc/${name}`;
+const WS_PATH            = window.__QADZONE_WS_PATH__ || "/agents/qadzone/ws";
+const EMBED_URL          = "/agents/qadzone/embed";
+const DEMO_EMBED_URL     = "/agents/qadzone/demo-embed";
+const DEMO_DOC_URL       = (name) => `/agents/qadzone/demo-doc/${name}`;
+const DEMO_BLUEPRINT_URL = (name) => `/agents/qadzone/demo-blueprint/${name}`;
 
 // ── Demo data (hardcoded for 3 known customizations) ─────────────────────────
 const DEMO_DATA = {
@@ -48,6 +49,8 @@ const DEMO_DATA = {
     migrationEffort: { label: "Medium", bg: "bg-[rgba(234,179,8,0.15)]",  text: "text-[#fcd34d]"  },
     modules: ["Inventory", "GL / Finance", "Manufacturing"],
     docFilename: "MRN_System_Documentation.docx",
+    blueprintFilename: "MRN_Migration_Blueprint.docx",
+    hasBlueprint: true,
     sources: [
       { label: "QAD Adaptive ERP — Inventory Management Capabilities Guide", url: "https://www.qad.com/products/qad-adaptive-erp" },
       { label: "QAD Global Requisition System (GRS) Feature Comparison", url: "https://www.qad.com/solutions/manufacturing" },
@@ -423,20 +426,20 @@ function SummaryTab({ data }) {
   );
 }
 
-// ── Documentation tab ─────────────────────────────────────────────────────────
-function DocTab({ custName, data }) {
-  const [embedState, setEmbedState] = useState("idle");
-
-  function handleEmbed() {
-    setEmbedState("loading");
-    fetch(DEMO_EMBED_URL, { method: "POST", credentials: "same-origin" }).catch(() => {});
-    setTimeout(() => setEmbedState("done"), 3000);
-  }
-
+// ── Documentation tab — internal building blocks ──────────────────────────────
+//
+// Two flavours share the same dark-teal layout:
+//   <DocTabShell>  — visual chrome (file row + embed row)
+//   <DemoDocTab>   — demo flow: serves prebuilt /demo-doc, fake embed
+//   <LiveDocTab>   — real flow: doc.url from WS, real /agents/qadzone/embed
+//
+function DocTabShell({ filename, subtitle, downloadHref, onEmbed, embedState }) {
   const embedBtnStyle = embedState === "done"
     ? { background: "rgba(34,197,94,0.15)", color: "#86efac", border: "1px solid rgba(34,197,94,0.25)", cursor: "default" }
     : embedState === "loading"
     ? { background: "rgba(0,229,200,0.06)", color: "rgba(0,229,200,0.35)", border: "1px solid rgba(0,229,200,0.1)", cursor: "not-allowed" }
+    : embedState === "error"
+    ? { background: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.25)", cursor: "pointer" }
     : { background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a", border: "none", cursor: "pointer" };
 
   return (
@@ -453,29 +456,35 @@ function DocTab({ custName, data }) {
             </svg>
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-semibold truncate" style={{ color: "#e8f4ff" }}>{data.docFilename}</div>
-            <div className="text-xs mt-0.5" style={{ color: "rgba(180,210,255,0.45)" }}>{data.title} — System Documentation</div>
+            <div className="text-sm font-semibold truncate" style={{ color: "#e8f4ff" }}>{filename}</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(180,210,255,0.45)" }}>{subtitle}</div>
           </div>
         </div>
-        <a href={DEMO_DOC_URL(custName)} download={data.docFilename}
-          className="shrink-0 px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
-          style={{ background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a" }}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Download
-        </a>
+        {downloadHref && (
+          <a href={downloadHref} download={filename}
+            className="shrink-0 px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
+            style={{ background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a" }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download
+          </a>
+        )}
       </div>
 
       <div style={cardDark}>
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="text-sm font-semibold" style={{ color: "#e8f4ff" }}>Add to Knowledge Base</div>
-            <div className="text-xs mt-0.5" style={{ color: "rgba(180,210,255,0.45)" }}>Embed this document into the Apex search index</div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(180,210,255,0.45)" }}>
+              {embedState === "error"
+                ? "Embed failed — click to retry"
+                : "Embed this document into the Apex search index"}
+            </div>
           </div>
-          <button onClick={handleEmbed} disabled={embedState !== "idle"}
+          <button onClick={onEmbed} disabled={embedState === "loading" || embedState === "done"}
             className="shrink-0 px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
             style={embedBtnStyle}>
             {embedState === "loading" && (
@@ -485,9 +494,10 @@ function DocTab({ custName, data }) {
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
               </svg>
             )}
-            {embedState === "done" && "✓ Done"}
+            {embedState === "done"    && "✓ Done"}
             {embedState === "loading" && "Embedding…"}
-            {embedState === "idle" && "Embed"}
+            {embedState === "error"   && "Retry"}
+            {embedState === "idle"    && "Embed"}
           </button>
         </div>
       </div>
@@ -495,10 +505,115 @@ function DocTab({ custName, data }) {
   );
 }
 
-// ── Demo panel (two tabs) ─────────────────────────────────────────────────────
-function DemoPanel({ custName }) {
+function DemoDocTab({ custName, data }) {
+  const [embedState, setEmbedState] = useState("idle");
+  function handleEmbed() {
+    setEmbedState("loading");
+    fetch(DEMO_EMBED_URL, { method: "POST", credentials: "same-origin" }).catch(() => {});
+    setTimeout(() => setEmbedState("done"), 3000);
+  }
+  return (
+    <>
+      <DocTabShell
+        filename={data.docFilename}
+        subtitle={`${data.title} — System Documentation`}
+        downloadHref={DEMO_DOC_URL(custName)}
+        onEmbed={handleEmbed}
+        embedState={embedState}
+      />
+      {data.hasBlueprint && (
+        <DemoBlueprintCard
+          custName={custName}
+          filename={data.blueprintFilename || `${custName}_Migration_Blueprint.docx`}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Migration Blueprint card (download-only, no embed) ─────────────────────────
+//
+// Shown below the main demo doc card when DEMO_DATA[custName].hasBlueprint is true.
+// Currently: MRN only.
+function DemoBlueprintCard({ custName, filename }) {
+  return (
+    <div className="px-6 pb-2">
+      <div className="flex items-center justify-between gap-4" style={cardDark}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc" }}>
+            {/* book/blueprint icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate" style={{ color: "#e8f4ff" }}>
+              {filename}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(180,210,255,0.55)" }}>
+              QAD Adaptive Migration Blueprint — how to bridge the remaining gap
+            </div>
+          </div>
+        </div>
+        <a href={DEMO_BLUEPRINT_URL(custName)} download={filename}
+          className="shrink-0 px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
+          style={{ background: "linear-gradient(135deg,#6366f1,#818cf8)", color: "#0b1130" }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function LiveDocTab({ doc, onEmbed }) {
+  const [embedState, setEmbedState] = useState("idle");
+  if (!doc) {
+    return (
+      <div className="p-6">
+        <div style={{ ...cardDark, textAlign: "center" }}>
+          <div className="text-sm" style={{ color: "rgba(180,210,255,0.6)" }}>
+            Documentation file is not available yet.
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const filename = doc.url ? doc.url.split("/").pop() : `${doc.title || "documentation"}.docx`;
+
+  async function handleEmbed() {
+    if (embedState === "loading" || embedState === "done") return;
+    setEmbedState("loading");
+    try {
+      await onEmbed?.(doc);
+      setEmbedState("done");
+    } catch (e) {
+      console.error("Embed failed", e);
+      setEmbedState("error");
+    }
+  }
+
+  return (
+    <DocTabShell
+      filename={filename}
+      subtitle={`${doc.title || "Generated documentation"} — Word document ready`}
+      downloadHref={doc.url}
+      onEmbed={handleEmbed}
+      embedState={embedState}
+    />
+  );
+}
+
+// ── Tabbed analysis shell (used by both DemoPanel + AnalysisPanel) ────────────
+function TabbedShell({ title, custName, summaryNode, docNode }) {
   const [tab, setTab] = useState("summary");
-  const data = DEMO_DATA[custName];
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="mb-5 flex items-center gap-3">
@@ -510,8 +625,10 @@ function DemoPanel({ custName }) {
           </svg>
         </div>
         <div>
-          <div className="text-base font-bold" style={{ color: "#e8f4ff" }}>{data.title}</div>
-          <div className="text-xs" style={{ color: "rgba(180,210,255,0.45)" }}>Customization Analysis · {custName}</div>
+          <div className="text-base font-bold" style={{ color: "#e8f4ff" }}>{title}</div>
+          <div className="text-xs" style={{ color: "rgba(180,210,255,0.45)" }}>
+            Customization Analysis{custName ? ` · ${custName}` : ""}
+          </div>
         </div>
       </div>
 
@@ -529,13 +646,86 @@ function DemoPanel({ custName }) {
       </div>
 
       <div style={{ background: "rgba(6,13,26,0.6)", border: "1px solid rgba(0,229,200,0.12)", borderRadius: "16px" }}>
-        {tab === "summary"       && <SummaryTab data={data} />}
-        {tab === "documentation" && <DocTab custName={custName} data={data} />}
+        {tab === "summary"       && summaryNode}
+        {tab === "documentation" && docNode}
       </div>
 
-      {/* bottom spacer so last card clears the viewport */}
       <div className="h-10" />
     </div>
+  );
+}
+
+// ── Demo panel (two tabs) ─────────────────────────────────────────────────────
+function DemoPanel({ custName }) {
+  const data = DEMO_DATA[custName];
+  return (
+    <TabbedShell
+      title={data.title}
+      custName={custName}
+      summaryNode={<SummaryTab data={data} />}
+      docNode={<DemoDocTab custName={custName} data={data} />}
+    />
+  );
+}
+
+// ── Real-flow analysis panel (live LLM summary + live generated doc) ─────────
+//
+// Maps the WS `summary` frame payload into the shape SummaryTab expects.
+// Falls back to a graceful "summary unavailable" placeholder if the summary
+// LLM call failed but the doc succeeded.
+function _impactColor(label) {
+  // Mirrors the visual scheme used in DEMO_DATA (red for High, amber for Medium, green for Low).
+  const L = (label || "").toLowerCase();
+  if (L === "high")   return { bg: "bg-[rgba(239,68,68,0.15)]",  text: "text-[#fca5a5]" };
+  if (L === "medium") return { bg: "bg-[rgba(234,179,8,0.15)]",  text: "text-[#fcd34d]" };
+  if (L === "low")    return { bg: "bg-[rgba(34,197,94,0.15)]",  text: "text-[#86efac]" };
+  return { bg: "bg-[rgba(99,102,241,0.15)]", text: "text-[#a5b4fc]" };
+}
+
+function _normaliseSummary(raw) {
+  if (!raw || raw.error) return null;
+  const impact = String(raw.businessImpact  || "Medium");
+  const effort = String(raw.migrationEffort || "Medium");
+  return {
+    title:            raw.systemFullName || raw.systemName || "Custom Module",
+    executiveSummary: raw.executiveSummary || "",
+    keyCapabilities:  Array.isArray(raw.keyCapabilities) ? raw.keyCapabilities : [],
+    replaceability:   Number.isFinite(raw.replaceability) ? raw.replaceability : 0,
+    confidence:       Number.isFinite(raw.confidence)     ? raw.confidence     : 0,
+    businessImpact:   { label: impact[0].toUpperCase() + impact.slice(1).toLowerCase(), ..._impactColor(impact) },
+    migrationEffort:  { label: effort[0].toUpperCase() + effort.slice(1).toLowerCase(), ..._impactColor(effort) },
+    modules:          Array.isArray(raw.tags) ? raw.tags : [],
+    sources:          Array.isArray(raw.sources) ? raw.sources : [],
+  };
+}
+
+function SummaryUnavailable() {
+  return (
+    <div className="p-6">
+      <div style={{ ...cardDark, textAlign: "center" }}>
+        <div className="text-sm font-semibold mb-1" style={{ color: "#fcd34d" }}>
+          Summary unavailable
+        </div>
+        <div className="text-xs" style={{ color: "rgba(180,210,255,0.55)" }}>
+          The executive summary could not be generated for this run. The Documentation tab
+          is still available — please retry to regenerate the summary.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalysisPanel({ summary, doc, onEmbed }) {
+  const data = _normaliseSummary(summary);
+  const title = data?.title || doc?.title || "Custom Module Analysis";
+  const custName = (summary && summary.systemName) || "";
+  return (
+    <TabbedShell
+      title={title}
+      custName={custName}
+      summaryNode={data ? <SummaryTab data={data} /> : <SummaryUnavailable />}
+      docNode={<LiveDocTab doc={doc} onEmbed={onEmbed} />}
+    />
   );
 }
 
@@ -574,6 +764,8 @@ export function QadZone() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoFile, setDemoFile]       = useState("");
   const demoTimerRef                  = useRef(null);
+  const [uploadError, setUploadError] = useState(""); // transient toast above input bar
+  const uploadErrorTimerRef           = useRef(null);
 
   const [modernForm, setModernForm] = useState({ currentVersion:"", currentCustom:"", targetVersion:"", targetCustom:"" });
   const [modernLoading, setModernLoading]    = useState(false);
@@ -604,6 +796,27 @@ export function QadZone() {
       setDemoMode(null);
     }
   }, [uploadedFiles]);
+
+  // Show a 4-second transient validation message above the input bar.
+  function flashUploadError(msg) {
+    setUploadError(msg);
+    if (uploadErrorTimerRef.current) clearTimeout(uploadErrorTimerRef.current);
+    uploadErrorTimerRef.current = setTimeout(() => {
+      setUploadError("");
+      uploadErrorTimerRef.current = null;
+    }, 4000);
+  }
+
+  // Auto-clear the upload error as soon as the user adds a file.
+  useEffect(() => {
+    if (uploadedFiles.length > 0 && uploadError) {
+      setUploadError("");
+      if (uploadErrorTimerRef.current) {
+        clearTimeout(uploadErrorTimerRef.current);
+        uploadErrorTimerRef.current = null;
+      }
+    }
+  }, [uploadedFiles, uploadError]);
 
   // Trigger demo analysis on Send click (called from sendChat)
   function triggerDemoIfKnown(files) {
@@ -665,6 +878,13 @@ export function QadZone() {
       }
     }
 
+    // Documentation mode requires uploaded files (no on-disk fallback any more).
+    // Allow follow-up chip clicks (overrideQuestion) — those operate on the prior message.
+    if (mode === "documentation" && !hasFiles && !overrideQuestion) {
+      flashUploadError("Please upload .p / .i / .xml / .zip files to generate documentation.");
+      return;
+    }
+
     if (hasFiles) cachedFilesRef.current = [...uploadedFiles];
     const displayText = overrideQuestion || q || `📎 ${uploadedFiles.map((f) => f.name).join(", ")}`;
     const question    = q || (mode === "documentation" ? "Generate documentation for the uploaded code" : "Analyse and explain the uploaded code");
@@ -672,15 +892,33 @@ export function QadZone() {
     setInput(""); clearFiles();
     setMessages((prev) => [...prev, { role: "user", text: displayText }]);
     setLoading(true); setStreaming(false); setStatus(""); setLiveHtml("");
-    let extraDoc = null, extraFollowups = null;
+    let extraDoc = null, extraFollowups = null, extraSummary = null;
     chatDoneRef.current = false;
+    const isDocMode = mode === "documentation";
     const closeWs = openWs({ mode, question, uploaded_files: filesToSend }, {
       onToken:  (acc) => { setStreaming(true); setLiveHtml(renderMarkdown(acc)); },
       onStatus: (msg) => setStatus(msg),
-      onFrame:  (type, data) => { if (type === "doc") extraDoc = data; if (type === "followup") extraFollowups = data; },
+      onFrame:  (type, data) => {
+        if (type === "doc")      extraDoc       = data;
+        if (type === "followup") extraFollowups = data;
+        if (type === "summary")  extraSummary   = data;
+      },
       onDone: (acc) => {
         if (chatDoneRef.current) return; chatDoneRef.current = true;
-        setMessages((prev) => [...prev, { role: "assistant", html: buildHtml(acc, { followups: extraFollowups }), doc: extraDoc }]);
+        const msg = {
+          role: "assistant",
+          html: buildHtml(acc, { followups: extraFollowups }),
+          doc:  extraDoc,
+        };
+        // Documentation mode → render the new two-tab AnalysisPanel
+        // instead of the inline DocCard. We always set isAnalysis when in
+        // doc mode so users see the panel even if only one of the two
+        // backend frames arrived (graceful degradation).
+        if (isDocMode && (extraSummary || extraDoc)) {
+          msg.isAnalysis = true;
+          msg.summary    = extraSummary;
+        }
+        setMessages((prev) => [...prev, msg]);
         setLoading(false); setStreaming(false); setStatus(""); setLiveHtml(""); closeWsRef.current = null;
       },
       onError: (msg) => {
@@ -781,7 +1019,11 @@ export function QadZone() {
                       <div className="rounded-2xl p-5 prose-container"
                         style={{ background: "rgba(10,20,42,0.85)", border: "1px solid rgba(0,229,200,0.14)", color: "#e8f4ff" }}
                         dangerouslySetInnerHTML={{ __html: m.html }} />
-                      {m.doc && <DocCard doc={m.doc} onEmbed={handleEmbed} />}
+                      {m.isAnalysis ? (
+                        <AnalysisPanel summary={m.summary} doc={m.doc} onEmbed={handleEmbed} />
+                      ) : (
+                        m.doc && <DocCard doc={m.doc} onEmbed={handleEmbed} />
+                      )}
                     </div>
                   )}
                 </div>
@@ -811,9 +1053,28 @@ export function QadZone() {
         </main>
 
         {mode !== "modernisation" && !demoMode && !demoLoading && (
-          <FileUploadBar mode={mode} input={input} setInput={setInput}
-            uploadedFiles={uploadedFiles} onAddFiles={addFiles} onRemoveFile={removeFile}
-            onSend={() => sendChat()} loading={loading} />
+          <>
+            {uploadError && (
+              <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-10 pointer-events-none">
+                <div className="rounded-lg px-4 py-2 text-xs flex items-center gap-2"
+                  style={{
+                    background: "rgba(239,68,68,0.12)",
+                    border: "1px solid rgba(239,68,68,0.3)",
+                    color: "#fca5a5",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                  }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span>{uploadError}</span>
+                </div>
+              </div>
+            )}
+            <FileUploadBar mode={mode} input={input} setInput={setInput}
+              uploadedFiles={uploadedFiles} onAddFiles={addFiles} onRemoveFile={removeFile}
+              onSend={() => sendChat()} loading={loading} />
+          </>
         )}
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 Usage::
 
-    from app.core.llm import groq_chat, openai_chat, openai_stream, openai_embed
+    from app.core.llm import groq_chat, openai_chat, openai_stream, openai_embed, openai_search
 
     # Fast classification via Groq
     tables = await groq_chat(system_prompt, user_msg)
@@ -140,6 +140,40 @@ async def openai_stream(
                         yield text
                 except (json.JSONDecodeError, KeyError, IndexError):
                     continue
+
+
+async def openai_search(
+    query: str,
+    *,
+    max_tokens: int = 1500,
+    timeout: float = 60.0,
+    model: str = "gpt-4o-search-preview",
+) -> str:
+    """Run a single OpenAI web-search-enabled chat call.
+
+    Uses OpenAI's `gpt-4o-search-preview` model with `web_search_options={}`
+    so the model performs a live web search before responding. Returns the
+    assistant's message content as plain text (typically with inline
+    `[1] (url)` style citations injected by the search tool).
+
+    This is a robust replacement for third-party search libraries
+    (DuckDuckGo etc.) that frequently rate-limit or hang. Failures raise.
+    """
+    payload = {
+        "model": model,
+        "web_search_options": {},
+        "messages": [{"role": "user", "content": query}],
+        "max_tokens": max_tokens,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.openai_api_key}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(_OPENAI_URL, json=payload, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
 
 
 async def openai_embed(text: str) -> list[float]:

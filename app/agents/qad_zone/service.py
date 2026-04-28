@@ -2,17 +2,33 @@
 
 Modes:
 1. query        — RAG Q&A over custom programs (full module code stuffing) with chat history
-2. documentation — Generate corporate Word docs using the structured template
+2. documentation — Generate corporate Word docs + executive Summary JSON in parallel
 3. modernisation — Takes current_version + target_version directly from WS payload,
                    runs web research + LLM analysis, generates Word migration plan.
 
 File upload support:
-- Users can upload .p, .i, .xml files or .zip archives directly in Query and Docs modes.
-- Uploaded code is used as the primary code context (instead of disk modules).
+- Query mode: uploaded code preferred, falls back to on-disk modules if no upload.
+- Documentation mode: REQUIRES uploaded files (no disk fallback). Demo modules
+  RTDC/DOA/MRN are intercepted on the frontend and never reach this handler.
 - ZIP archives are automatically extracted; all supported text files inside are included.
+
+Documentation pipeline (3 logical phases — only 2 sequential LLM passes):
+    Pass 1 (extract facts JSON)
+            │
+            ▼
+    QAD Adaptive ERP web research (4 DDG queries in parallel via to_thread)
+            │
+            ▼
+    asyncio.gather:
+      • Pass 2  → Word doc JSON (uses facts + research)
+      • Summary → Executive summary JSON (uses facts + research)  ← runs in PARALLEL with Pass 2
+            │
+            ▼
+    Send `summary` frame + `doc` frame
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import logging
@@ -21,7 +37,7 @@ from pathlib import Path
 
 from fastapi import WebSocket
 
-from app.core.llm import groq_chat, openai_stream, openai_chat, parse_json_response
+from app.core.llm import groq_chat, openai_stream, openai_chat, openai_search, parse_json_response
 from app.core.session import append_turn, load_history, set_context, get_context
 from app.core.ws import send_done, send_error, send_frame, send_status, send_token
 from app.agents.qad_zone.programs import list_modules, load_module_code, load_all_code_summary
@@ -39,13 +55,25 @@ except ImportError:
     logger.warning("duckduckgo-search not installed; QAD replacement web search disabled")
 
 
+# Per-search hard timeout (seconds). Web research is best-effort enrichment;
+# if DDG is slow, throttling, or silent we MUST not block the doc pipeline.
+_WEB_SEARCH_TIMEOUT_SECS = 10
+
+
 def _web_search(query: str, max_results: int = 5) -> str:
-    """Search the web using DuckDuckGo. Returns formatted results string."""
+    """Search the web using DuckDuckGo. Returns formatted results string.
+
+    Hard-bounded by `_WEB_SEARCH_TIMEOUT_SECS` so a slow/silent DDG response
+    never wedges the calling thread. Errors are swallowed and reported as
+    text — callers continue with whatever (possibly empty) result they get.
+    """
     if not _ddg_available:
         return "Web search not available (install duckduckgo-search)."
     try:
         results = []
-        with DDGS() as ddgs:
+        # `timeout` here is forwarded to the underlying httpx client used by
+        # duckduckgo-search; older versions ignored it but newer (>= 6.x) honour it.
+        with DDGS(timeout=_WEB_SEARCH_TIMEOUT_SECS) as ddgs:
             for r in ddgs.text(query, max_results=max_results):
                 results.append(
                     f"• {r.get('title', '')}\n  {r.get('body', '')}\n  Source: {r.get('href', '')}"
@@ -217,27 +245,164 @@ RULES:
 
 # ── Mode 2: Documentation ─────────────────────────────────────────────────────
 
+# Hard timeout for the OpenAI web-search call (seconds). Web research is
+# best-effort enrichment for the Summary tab + Pass 2's QAD_STANDARD_REPLACEMENT
+# section — it must NEVER block the documentation pipeline indefinitely.
+_RESEARCH_TIMEOUT_SECS = 45
+
+
+async def _research_qad_adaptive(facts: dict) -> str:
+    """Run a single OpenAI web-search call covering QAD Adaptive ERP coverage.
+
+    Uses OpenAI's `gpt-4o-search-preview` model (live web search) instead of
+    the previous DuckDuckGo path — DDG was unreliable (frequent rate-limits
+    and silent hangs even from parallel requests). One LLM-orchestrated
+    search produces a richer, citation-bearing summary than 4 separate
+    keyword queries.
+
+    Hard-bounded by `_RESEARCH_TIMEOUT_SECS`. On any failure (timeout,
+    network, model error) returns a short marker string and logs the cause —
+    the documentation pipeline continues; the Summary tab simply scores
+    Replaceability/Confidence lower and ships an empty Sources list.
+    """
+    sys_full     = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
+    module_area  = facts.get("module") or ""
+    capabilities = facts.get("capabilities") or []
+    cap_lines = "\n".join(f"  - {c}" for c in capabilities[:10]) if capabilities else "  (none extracted)"
+
+    query = (
+        "Research what STANDARD QAD Adaptive ERP natively offers today that could replace or "
+        "partially replace the following custom Progress 4GL system. Answer with citations to "
+        "real QAD pages (qad.com, community.qad.com, learning.qad.com, partner blogs).\n\n"
+        f"System name: {sys_full}\n"
+        f"QAD module area: {module_area or '(unspecified)'}\n"
+        f"Custom capabilities to compare against:\n{cap_lines}\n\n"
+        "For EACH capability above answer:\n"
+        "1. Does QAD Adaptive ERP have a native module/feature that covers it? (Full / Partial / None)\n"
+        "2. The QAD module name (e.g. 'QAD Procurement', 'QAD Requisition Management', 'QAD Workflow').\n"
+        "3. The QAD version it was introduced in or last enhanced (e.g. 'QAD 2019 SE', 'QAD Cloud EE 2022').\n"
+        "4. A concise note on functional gaps that would remain if migrated to standard QAD.\n\n"
+        "End with a list of the 4-6 most useful source URLs you found."
+    )
+
+    logger.info("QAD Adaptive research: 1 OpenAI web-search call (timeout=%ds)", _RESEARCH_TIMEOUT_SECS)
+    try:
+        text = await asyncio.wait_for(
+            openai_search(query, max_tokens=2000),
+            timeout=_RESEARCH_TIMEOUT_SECS,
+        )
+        logger.info("QAD Adaptive research complete: %d chars", len(text))
+        return text
+    except asyncio.TimeoutError:
+        logger.warning("QAD Adaptive research timed out (>%ds)", _RESEARCH_TIMEOUT_SECS)
+        return f"[Web research timed out after {_RESEARCH_TIMEOUT_SECS}s — proceeding without it.]"
+    except Exception as exc:
+        logger.warning("QAD Adaptive research failed: %s", exc)
+        return f"[Web research failed: {exc} — proceeding without it.]"
+
+
+async def _generate_summary(raw1: str, web_research: str) -> dict | None:
+    """Generate the executive Summary JSON for the front-end Summary tab.
+
+    Returns the parsed dict on success, or None on failure (caller will
+    send a {"error": "unavailable"} placeholder so the doc still ships).
+    """
+    summary_system = (
+        "You are a senior QAD ERP modernisation analyst. "
+        "Read the extracted facts about a custom QAD Progress 4GL system and the QAD Adaptive ERP web research, "
+        "then produce a single executive-summary JSON for business stakeholders. "
+        "Return ONLY valid JSON — no markdown fences, no preamble, no extra text."
+    )
+
+    summary_prompt = f"""Given the extracted code facts and the QAD Adaptive ERP web research below,
+produce an executive summary JSON for a business audience.
+
+EXTRACTED FACTS:
+{raw1}
+
+QAD ADAPTIVE ERP WEB RESEARCH:
+{web_research}
+
+Return ONLY valid JSON with this exact structure (all keys required):
+
+{{
+  "systemName":      "Business short code (3-5 letters), e.g. RTDC, DOA, MRN. Strip any 'XX'/'YY' filename prefix.",
+  "systemFullName":  "Full descriptive name in plain English, e.g. 'Returnable / Non-Returnable Delivery Challan'",
+  "executiveSummary": "5-7 sentence paragraph for business stakeholders: what the system does, what business problem it solves, key capabilities, integration points with QAD, audit/workflow features. Do NOT describe code structure, file names, or programming patterns.",
+  "tags": ["2-4 functional area tags, e.g. Sales, Inventory, Customer Service, Finance, Manufacturing, Workflow, Cross-module"],
+  "keyCapabilities": [
+    "8-10 capability sentences — each is one complete business capability statement (similar to the existing facts.capabilities entries but expanded for business clarity)"
+  ],
+  "replaceability": 65,
+  "confidence":     85,
+  "businessImpact":  "High",
+  "migrationEffort": "High",
+  "sources": [
+    {{"label": "1-line title of a useful web research result", "url": "https://..."}}
+  ]
+}}
+
+SCORING GUIDANCE:
+- replaceability (integer 0-100): based on QAD Adaptive ERP web research, what percentage of this custom system's capabilities are natively covered by standard QAD Adaptive today? 100 = fully replaceable, 50 = roughly half, 0 = entirely custom.
+- confidence (integer 0-100): higher when the web research has clear matches and the facts are rich and well-populated; lower when ambiguous or sparse.
+- businessImpact: "High" = critical to daily business operations / regulatory or financial flow; "Medium" = important but contained to a single department; "Low" = nice-to-have or used infrequently.
+- migrationEffort: "High" = significant rework (custom logic, integrations, data migration); "Medium" = moderate development effort; "Low" = minimal changes needed.
+
+OUTPUT REQUIREMENTS (strict):
+- 'sources' MUST be derived from real URLs that appear in the web research above. Pick the 3-5 most relevant. If the research is empty, return an empty array — never invent URLs.
+- 'tags' = functional business areas, never technical layers (no 'Backend', 'Database', etc.).
+- 'replaceability' and 'confidence' MUST be JSON integers (not strings).
+- 'businessImpact' and 'migrationEffort' MUST be exactly one of "High", "Medium", "Low"."""
+
+    try:
+        raw = await openai_chat(summary_system, summary_prompt, max_tokens=2000, model="gpt-4o", temperature=0.2)
+        parsed = parse_json_response(raw)
+        # Coerce numeric fields defensively
+        for k in ("replaceability", "confidence"):
+            try:
+                parsed[k] = max(0, min(100, int(parsed.get(k, 0))))
+            except Exception:
+                parsed[k] = 0
+        # Normalise impact/effort labels
+        for k in ("businessImpact", "migrationEffort"):
+            v = str(parsed.get(k, "")).strip().capitalize()
+            parsed[k] = v if v in ("High", "Medium", "Low") else "Medium"
+        # Ensure list shapes
+        if not isinstance(parsed.get("tags"), list):
+            parsed["tags"] = []
+        if not isinstance(parsed.get("keyCapabilities"), list):
+            parsed["keyCapabilities"] = []
+        if not isinstance(parsed.get("sources"), list):
+            parsed["sources"] = []
+        return parsed
+    except Exception as exc:
+        logger.exception("Summary generation failed: %s", exc)
+        return None
+
+
 async def _handle_documentation(ws: WebSocket, question: str, session_id: str,
                                 uploaded_files: list[dict] | None = None) -> None:
-    """Generate structured corporate Word doc from custom code using the template.
+    """Generate structured corporate Word doc + executive Summary JSON in parallel.
 
-    If uploaded_files are provided they are used as the code context;
-    otherwise the on-disk module store is used as before.
+    Uploaded code is REQUIRED — there is no on-disk fallback for documentation mode.
+    Demo modules (RTDC / DOA / MRN) are intercepted by the React frontend and never
+    reach this handler.
     """
-    uploaded_code = _extract_uploaded_code(uploaded_files or [])
+    # ── Upload guard ─────────────────────────────────────────────────────────
+    if not uploaded_files:
+        await send_error(ws, "Please upload .p / .i / .xml / .zip files to generate documentation.")
+        return
 
-    if uploaded_code:
-        await send_status(ws, "Using uploaded code for documentation...")
-        code = uploaded_code
-        module = "uploaded"
-    else:
-        modules = list_modules()
-        module = await _detect_module(question, modules)
-        await send_status(ws, f"Loading code from module: {module or 'all'}...")
-        code = load_module_code(module) if module else load_all_code_summary()
+    uploaded_code = _extract_uploaded_code(uploaded_files or [])
+    if not uploaded_code:
+        await send_error(ws, "Could not read any supported code from the uploaded files. Supported types: .p .i .xml .cls .w .df .txt (or .zip containing them).")
+        return
+
+    code = uploaded_code
+    module = "uploaded"
 
     # ── PASS 1: Extract structured facts from code ────────────────────────────
-    await send_status(ws, "Pass 1/2 — Reading and extracting code facts...")
+    await send_status(ws, "Extracting code facts…")
 
     pass1_system = """You are a senior QAD ERP Progress 4GL code analyst.
 Extract structured technical facts from the source code provided.
@@ -370,28 +535,13 @@ Extract ONLY what you can find in the code. Omit keys with no evidence."""
         logger.warning("PASS1 failed to parse — falling back to single-pass")
         facts = {}
 
-    # ── WEB RESEARCH: Search for standard QAD native replacements ────────────
-    await send_status(ws, "Searching QAD knowledge base for standard native alternatives...")
-
-    _sys_full   = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
-    _module_area = facts.get("module") or ""
-    _biz_purpose = facts.get("business_purpose") or ""
-
-    _searches = [
-        f"QAD ERP standard native module \"{_sys_full}\" built-in functionality which version",
-        f"QAD ERP {_module_area} standard feature replace custom program native alternative",
-        f"QAD ERP {_sys_full} {_module_area} standard functionality introduced version release",
-        f"QAD Enterprise Applications {_module_area} {_sys_full} out-of-box feature",
-    ]
-    _web_parts = []
-    for _q in _searches:
-        logger.info("QAD replacement search: %s", _q)
-        _web_parts.append(f"QUERY: {_q}\n{_web_search(_q, max_results=4)}")
-    web_replacement_research = "\n\n---\n\n".join(_web_parts)
+    # ── WEB RESEARCH: QAD Adaptive ERP coverage (shared by Pass 2 + Summary) ─
+    await send_status(ws, "Researching QAD Adaptive ERP coverage…")
+    web_replacement_research = await _research_qad_adaptive(facts)
     logger.info("Web research complete: %d chars", len(web_replacement_research))
 
-    # ── PASS 2: Generate full documentation JSON from extracted facts ─────────
-    await send_status(ws, "Pass 2/2 — Building full documentation structure...")
+    # ── PARALLEL: Pass 2 (Word doc) + Summary (executive JSON) ───────────────
+    await send_status(ws, "Building documentation & executive summary in parallel…")
 
     pass2_system = """You are a senior QAD ERP technical writer producing a comprehensive corporate Word document.
 You are given pre-extracted facts from source code analysis. Transform these facts into rich, detailed documentation.
@@ -656,7 +806,34 @@ Return ONLY valid JSON:
 OUTPUT REQUIREMENT: The JSON must be at least 15,000 characters long. Every array must have real entries. Every paragraph must be 4+ sentences."""
 
     logger.info("PASS2 prompt length: %d chars", len(pass2_prompt))
-    raw = await openai_chat(pass2_system, pass2_prompt, max_tokens=16000, model="gpt-4o")
+
+    # Run Pass 2 (Word doc) and Summary (executive JSON) concurrently. The summary
+    # call is small (~3-5s) so it virtually never blocks Pass 2 (~10-20s); we just
+    # wait for the slower of the two.
+    pass2_task   = asyncio.create_task(
+        openai_chat(pass2_system, pass2_prompt, max_tokens=16000, model="gpt-4o")
+    )
+    summary_task = asyncio.create_task(
+        _generate_summary(raw1, web_replacement_research)
+    )
+    raw, summary_data = await asyncio.gather(pass2_task, summary_task, return_exceptions=True)
+
+    # ── Send `summary` frame (graceful degradation if it failed) ─────────────
+    if isinstance(summary_data, dict) and summary_data:
+        await send_frame(ws, "summary", summary_data)
+        logger.info("SUMMARY sent: keys=%s", list(summary_data.keys()))
+    else:
+        if isinstance(summary_data, Exception):
+            logger.exception("Summary task raised: %s", summary_data)
+        await send_frame(ws, "summary", {"error": "unavailable"})
+        logger.warning("SUMMARY unavailable — sending placeholder")
+
+    # ── Process Pass 2 result (Word doc) ────────────────────────────────────
+    if isinstance(raw, Exception):
+        logger.exception("PASS2 task raised: %s", raw)
+        await send_error(ws, f"Documentation generation failed: {raw}")
+        return
+
     logger.info("PASS2 raw response length: %d chars", len(raw))
 
     try:
