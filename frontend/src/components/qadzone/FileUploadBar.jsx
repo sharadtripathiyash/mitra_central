@@ -12,7 +12,7 @@ export function FileUploadBar({ mode, input, setInput, uploadedFiles, onAddFiles
     mode === "documentation"
       ? uploadedFiles.length
         ? "Describe what to document, or press Enter…"
-        : "e.g. Create documentation for the DOA module…"
+        : "Attach .p / .i / .xml / .zip files to start…"
       : uploadedFiles.length
       ? "Ask about the uploaded code…"
       : "Ask about custom QAD programs…";
@@ -28,7 +28,7 @@ export function FileUploadBar({ mode, input, setInput, uploadedFiles, onAddFiles
 
   const tip =
     mode === "documentation" && uploadedFiles.length === 0
-      ? <>Tip: Upload .p .i .xml .zip files or specify a module, e.g. <em>"Document the DOA approval module"</em></>
+      ? <>Upload .p .i .xml .zip files to generate documentation — uploads are required</>
       : mode === "documentation" && uploadedFiles.length > 0
       ? "Documentation will be generated from your uploaded code"
       : mode === "query" && uploadedFiles.length === 0
