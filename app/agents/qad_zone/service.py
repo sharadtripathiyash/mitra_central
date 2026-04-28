@@ -37,7 +37,7 @@ from pathlib import Path
 
 from fastapi import WebSocket
 
-from app.core.llm import groq_chat, openai_stream, openai_chat, parse_json_response
+from app.core.llm import groq_chat, openai_stream, openai_chat, openai_search, parse_json_response
 from app.core.session import append_turn, load_history, set_context, get_context
 from app.core.ws import send_done, send_error, send_frame, send_status, send_token
 from app.agents.qad_zone.programs import list_modules, load_module_code, load_all_code_summary
@@ -245,62 +245,60 @@ RULES:
 
 # ── Mode 2: Documentation ─────────────────────────────────────────────────────
 
-# Outer per-task safety timeout (seconds). `asyncio.wait_for` cancels the
-# awaitable but the underlying thread keeps running — that's acceptable;
-# what matters is the pipeline moves on without it.
-_RESEARCH_TASK_TIMEOUT_SECS = 15
-
-
-async def _bounded_search(query: str, max_results: int = 4) -> str:
-    """Run one DDG search in a thread with a hard outer timeout.
-
-    Always returns a string (never raises). On timeout/error the string is
-    a short marker so the LLM sees that this query failed but the rest of
-    the research is still usable.
-    """
-    try:
-        return await asyncio.wait_for(
-            asyncio.to_thread(_web_search, query, max_results),
-            timeout=_RESEARCH_TASK_TIMEOUT_SECS,
-        )
-    except asyncio.TimeoutError:
-        logger.warning("Web search timed out (>%ds): %s", _RESEARCH_TASK_TIMEOUT_SECS, query)
-        return f"[Search timed out after {_RESEARCH_TASK_TIMEOUT_SECS}s]"
-    except Exception as exc:
-        logger.warning("Web search task error: %s | query=%s", exc, query)
-        return f"[Search error: {exc}]"
+# Hard timeout for the OpenAI web-search call (seconds). Web research is
+# best-effort enrichment for the Summary tab + Pass 2's QAD_STANDARD_REPLACEMENT
+# section — it must NEVER block the documentation pipeline indefinitely.
+_RESEARCH_TIMEOUT_SECS = 45
 
 
 async def _research_qad_adaptive(facts: dict) -> str:
-    """Run 4 DuckDuckGo queries scoped to QAD Adaptive ERP for the given system facts.
+    """Run a single OpenAI web-search call covering QAD Adaptive ERP coverage.
 
-    Queries run in parallel via asyncio.to_thread so the (blocking) DDG calls
-    don't stall the event loop. Each query is hard-bounded by
-    `_RESEARCH_TASK_TIMEOUT_SECS` so a slow/silent DDG can't wedge the
-    documentation pipeline. Returns a single formatted text block to feed
-    both Pass 2 (doc gen) and the Summary LLM — empty/failed queries are
-    represented as short markers so the LLM still sees the query attempted.
+    Uses OpenAI's `gpt-4o-search-preview` model (live web search) instead of
+    the previous DuckDuckGo path — DDG was unreliable (frequent rate-limits
+    and silent hangs even from parallel requests). One LLM-orchestrated
+    search produces a richer, citation-bearing summary than 4 separate
+    keyword queries.
+
+    Hard-bounded by `_RESEARCH_TIMEOUT_SECS`. On any failure (timeout,
+    network, model error) returns a short marker string and logs the cause —
+    the documentation pipeline continues; the Summary tab simply scores
+    Replaceability/Confidence lower and ships an empty Sources list.
     """
-    sys_full   = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
-    module_area = facts.get("module") or ""
+    sys_full     = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
+    module_area  = facts.get("module") or ""
+    capabilities = facts.get("capabilities") or []
+    cap_lines = "\n".join(f"  - {c}" for c in capabilities[:10]) if capabilities else "  (none extracted)"
 
-    queries = [
-        f"QAD Adaptive ERP \"{sys_full}\" native module standard functionality",
-        f"QAD Adaptive ERP {module_area} {sys_full} out-of-box feature replace customization",
-        f"QAD Adaptive ERP {module_area} workflow approval standard functionality",
-        f"QAD Adaptive ERP {module_area} {sys_full} feature release version",
-    ]
-    logger.info("QAD Adaptive research: %d parallel queries (per-task timeout=%ds)",
-                len(queries), _RESEARCH_TASK_TIMEOUT_SECS)
-    results = await asyncio.gather(*(_bounded_search(q, 4) for q in queries))
+    query = (
+        "Research what STANDARD QAD Adaptive ERP natively offers today that could replace or "
+        "partially replace the following custom Progress 4GL system. Answer with citations to "
+        "real QAD pages (qad.com, community.qad.com, learning.qad.com, partner blogs).\n\n"
+        f"System name: {sys_full}\n"
+        f"QAD module area: {module_area or '(unspecified)'}\n"
+        f"Custom capabilities to compare against:\n{cap_lines}\n\n"
+        "For EACH capability above answer:\n"
+        "1. Does QAD Adaptive ERP have a native module/feature that covers it? (Full / Partial / None)\n"
+        "2. The QAD module name (e.g. 'QAD Procurement', 'QAD Requisition Management', 'QAD Workflow').\n"
+        "3. The QAD version it was introduced in or last enhanced (e.g. 'QAD 2019 SE', 'QAD Cloud EE 2022').\n"
+        "4. A concise note on functional gaps that would remain if migrated to standard QAD.\n\n"
+        "End with a list of the 4-6 most useful source URLs you found."
+    )
 
-    parts: list[str] = []
-    for q, r in zip(queries, results):
-        parts.append(f"QUERY: {q}\n{r}")
-    logger.info("QAD Adaptive research complete: %d/%d queries returned content",
-                sum(1 for r in results if r and not r.startswith("[Search ")),
-                len(results))
-    return "\n\n---\n\n".join(parts)
+    logger.info("QAD Adaptive research: 1 OpenAI web-search call (timeout=%ds)", _RESEARCH_TIMEOUT_SECS)
+    try:
+        text = await asyncio.wait_for(
+            openai_search(query, max_tokens=2000),
+            timeout=_RESEARCH_TIMEOUT_SECS,
+        )
+        logger.info("QAD Adaptive research complete: %d chars", len(text))
+        return text
+    except asyncio.TimeoutError:
+        logger.warning("QAD Adaptive research timed out (>%ds)", _RESEARCH_TIMEOUT_SECS)
+        return f"[Web research timed out after {_RESEARCH_TIMEOUT_SECS}s — proceeding without it.]"
+    except Exception as exc:
+        logger.warning("QAD Adaptive research failed: %s", exc)
+        return f"[Web research failed: {exc} — proceeding without it.]"
 
 
 async def _generate_summary(raw1: str, web_research: str) -> dict | None:
