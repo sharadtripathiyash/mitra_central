@@ -21,10 +21,11 @@ import { DocCard } from "../shared/DocCard";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { renderMarkdown, escapeHtml, buildWsUrl } from "../../utils/helpers";
 
-const WS_PATH        = window.__QADZONE_WS_PATH__ || "/agents/qadzone/ws";
-const EMBED_URL      = "/agents/qadzone/embed";
-const DEMO_EMBED_URL = "/agents/qadzone/demo-embed";
-const DEMO_DOC_URL   = (name) => `/agents/qadzone/demo-doc/${name}`;
+const WS_PATH            = window.__QADZONE_WS_PATH__ || "/agents/qadzone/ws";
+const EMBED_URL          = "/agents/qadzone/embed";
+const DEMO_EMBED_URL     = "/agents/qadzone/demo-embed";
+const DEMO_DOC_URL       = (name) => `/agents/qadzone/demo-doc/${name}`;
+const DEMO_BLUEPRINT_URL = (name) => `/agents/qadzone/demo-blueprint/${name}`;
 
 // ── Demo data (hardcoded for 3 known customizations) ─────────────────────────
 const DEMO_DATA = {
@@ -48,6 +49,8 @@ const DEMO_DATA = {
     migrationEffort: { label: "Medium", bg: "bg-[rgba(234,179,8,0.15)]",  text: "text-[#fcd34d]"  },
     modules: ["Inventory", "GL / Finance", "Manufacturing"],
     docFilename: "MRN_System_Documentation.docx",
+    blueprintFilename: "MRN_Migration_Blueprint.docx",
+    hasBlueprint: true,
     sources: [
       { label: "QAD Adaptive ERP — Inventory Management Capabilities Guide", url: "https://www.qad.com/products/qad-adaptive-erp" },
       { label: "QAD Global Requisition System (GRS) Feature Comparison", url: "https://www.qad.com/solutions/manufacturing" },
@@ -510,13 +513,63 @@ function DemoDocTab({ custName, data }) {
     setTimeout(() => setEmbedState("done"), 3000);
   }
   return (
-    <DocTabShell
-      filename={data.docFilename}
-      subtitle={`${data.title} — System Documentation`}
-      downloadHref={DEMO_DOC_URL(custName)}
-      onEmbed={handleEmbed}
-      embedState={embedState}
-    />
+    <>
+      <DocTabShell
+        filename={data.docFilename}
+        subtitle={`${data.title} — System Documentation`}
+        downloadHref={DEMO_DOC_URL(custName)}
+        onEmbed={handleEmbed}
+        embedState={embedState}
+      />
+      {data.hasBlueprint && (
+        <DemoBlueprintCard
+          custName={custName}
+          filename={data.blueprintFilename || `${custName}_Migration_Blueprint.docx`}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Migration Blueprint card (download-only, no embed) ─────────────────────────
+//
+// Shown below the main demo doc card when DEMO_DATA[custName].hasBlueprint is true.
+// Currently: MRN only.
+function DemoBlueprintCard({ custName, filename }) {
+  return (
+    <div className="px-6 pb-2">
+      <div className="flex items-center justify-between gap-4" style={cardDark}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc" }}>
+            {/* book/blueprint icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate" style={{ color: "#e8f4ff" }}>
+              {filename}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: "rgba(180,210,255,0.55)" }}>
+              QAD Adaptive Migration Blueprint — how to bridge the remaining gap
+            </div>
+          </div>
+        </div>
+        <a href={DEMO_BLUEPRINT_URL(custName)} download={filename}
+          className="shrink-0 px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5"
+          style={{ background: "linear-gradient(135deg,#6366f1,#818cf8)", color: "#0b1130" }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download
+        </a>
+      </div>
+    </div>
   );
 }
 
