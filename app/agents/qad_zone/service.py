@@ -55,13 +55,25 @@ except ImportError:
     logger.warning("duckduckgo-search not installed; QAD replacement web search disabled")
 
 
+# Per-search hard timeout (seconds). Web research is best-effort enrichment;
+# if DDG is slow, throttling, or silent we MUST not block the doc pipeline.
+_WEB_SEARCH_TIMEOUT_SECS = 10
+
+
 def _web_search(query: str, max_results: int = 5) -> str:
-    """Search the web using DuckDuckGo. Returns formatted results string."""
+    """Search the web using DuckDuckGo. Returns formatted results string.
+
+    Hard-bounded by `_WEB_SEARCH_TIMEOUT_SECS` so a slow/silent DDG response
+    never wedges the calling thread. Errors are swallowed and reported as
+    text — callers continue with whatever (possibly empty) result they get.
+    """
     if not _ddg_available:
         return "Web search not available (install duckduckgo-search)."
     try:
         results = []
-        with DDGS() as ddgs:
+        # `timeout` here is forwarded to the underlying httpx client used by
+        # duckduckgo-search; older versions ignored it but newer (>= 6.x) honour it.
+        with DDGS(timeout=_WEB_SEARCH_TIMEOUT_SECS) as ddgs:
             for r in ddgs.text(query, max_results=max_results):
                 results.append(
                     f"• {r.get('title', '')}\n  {r.get('body', '')}\n  Source: {r.get('href', '')}"
@@ -233,12 +245,41 @@ RULES:
 
 # ── Mode 2: Documentation ─────────────────────────────────────────────────────
 
+# Outer per-task safety timeout (seconds). `asyncio.wait_for` cancels the
+# awaitable but the underlying thread keeps running — that's acceptable;
+# what matters is the pipeline moves on without it.
+_RESEARCH_TASK_TIMEOUT_SECS = 15
+
+
+async def _bounded_search(query: str, max_results: int = 4) -> str:
+    """Run one DDG search in a thread with a hard outer timeout.
+
+    Always returns a string (never raises). On timeout/error the string is
+    a short marker so the LLM sees that this query failed but the rest of
+    the research is still usable.
+    """
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_web_search, query, max_results),
+            timeout=_RESEARCH_TASK_TIMEOUT_SECS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Web search timed out (>%ds): %s", _RESEARCH_TASK_TIMEOUT_SECS, query)
+        return f"[Search timed out after {_RESEARCH_TASK_TIMEOUT_SECS}s]"
+    except Exception as exc:
+        logger.warning("Web search task error: %s | query=%s", exc, query)
+        return f"[Search error: {exc}]"
+
+
 async def _research_qad_adaptive(facts: dict) -> str:
     """Run 4 DuckDuckGo queries scoped to QAD Adaptive ERP for the given system facts.
 
     Queries run in parallel via asyncio.to_thread so the (blocking) DDG calls
-    don't stall the event loop. Returns a single formatted text block to feed
-    both Pass 2 (doc gen) and the Summary LLM.
+    don't stall the event loop. Each query is hard-bounded by
+    `_RESEARCH_TASK_TIMEOUT_SECS` so a slow/silent DDG can't wedge the
+    documentation pipeline. Returns a single formatted text block to feed
+    both Pass 2 (doc gen) and the Summary LLM — empty/failed queries are
+    represented as short markers so the LLM still sees the query attempted.
     """
     sys_full   = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
     module_area = facts.get("module") or ""
@@ -249,16 +290,16 @@ async def _research_qad_adaptive(facts: dict) -> str:
         f"QAD Adaptive ERP {module_area} workflow approval standard functionality",
         f"QAD Adaptive ERP {module_area} {sys_full} feature release version",
     ]
-    logger.info("QAD Adaptive research: %d parallel queries", len(queries))
-    tasks = [asyncio.to_thread(_web_search, q, 4) for q in queries]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    logger.info("QAD Adaptive research: %d parallel queries (per-task timeout=%ds)",
+                len(queries), _RESEARCH_TASK_TIMEOUT_SECS)
+    results = await asyncio.gather(*(_bounded_search(q, 4) for q in queries))
 
     parts: list[str] = []
     for q, r in zip(queries, results):
-        if isinstance(r, Exception):
-            parts.append(f"QUERY: {q}\n[Search failed: {r}]")
-        else:
-            parts.append(f"QUERY: {q}\n{r}")
+        parts.append(f"QUERY: {q}\n{r}")
+    logger.info("QAD Adaptive research complete: %d/%d queries returned content",
+                sum(1 for r in results if r and not r.startswith("[Search ")),
+                len(results))
     return "\n\n---\n\n".join(parts)
 
 
