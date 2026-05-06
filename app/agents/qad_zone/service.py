@@ -453,10 +453,23 @@ Return ONLY valid JSON with this exact structure (all keys required):
 }}
 
 SCORING GUIDANCE:
-- replaceability (integer 0-100): based on the KB EVIDENCE chunks above, what percentage of this custom system's capabilities are natively covered by standard QAD Adaptive today? 100 = fully replaceable, 50 = roughly half, 0 = entirely custom or no KB coverage.
+- replaceability (integer 0-100): based on the KB EVIDENCE, what percentage of this custom system's BUSINESS OUTCOMES are achievable with standard QAD Adaptive today? Score by CAPABILITY parity, NOT IMPLEMENTATION parity:
+    100 = every business outcome is natively achievable in standard QAD; the custom code is essentially a thin wrapper / format / report layer that can be retired.
+    80-95 = all major outcomes covered with only minor formatting, delivery, or UI differences.
+    50-70 = roughly half covered; meaningful business-rule gaps remain (calculations, routing logic, validations) that require custom development.
+    20-40 = only a small portion of outcomes have native equivalents; mostly unique business logic.
+    0-15 = no meaningful native coverage.
+  IMPORTANT: a custom email-notification wrapper that calls standard QAD's requisition/approval programs and just changes the format (JSON vs HTML) or transport (mailx vs SMTP) is HIGH replaceability (90%+) — NOT Partial. The underlying capability already lives in QAD; only the wrapper goes away.
+
 - confidence (integer 0-100): higher when KB chunks score well, multiple chunks support each capability, and the facts are rich. Lower when chunks are sparse, scores are weak, or facts are thin.
+
 - businessImpact: "High" = critical to daily business operations / regulatory or financial flow; "Medium" = important but contained to a single department; "Low" = nice-to-have or used infrequently.
-- migrationEffort: "High" = significant rework (custom logic, integrations, data migration); "Medium" = moderate development effort; "Low" = minimal changes needed.
+
+- migrationEffort:
+    "Low" = mostly configuration in standard QAD; thin custom layers (formatting, delivery, simple integrations) can be retired with minimal redevelopment. Use this when replaceability >= 80.
+    "Medium" = some custom logic must be re-implemented (e.g. as Business Events handlers, report customisations, or workflow extensions). Use this when replaceability is 50-79.
+    "High" = significant rework — custom data models to migrate, complex integrations to rebuild, proprietary business rules without QAD equivalent. Use this when replaceability < 50.
+  Examples: a JSON-email wrapper around standard QAD requisitions = Low effort. A custom approval engine with proprietary routing tables = High effort. A custom report layout = Low effort.
 
 OUTPUT REQUIREMENTS (strict):
 - 'sources' MUST come from the KB EVIDENCE block above. Pick the 3-5 chunks most relevant to the system's headline capabilities. Use the 'source_doc — breadcrumb' label format and url: null. NEVER invent URLs and never reference web pages that don't appear in the evidence.
@@ -682,10 +695,24 @@ CRITICAL INSTRUCTIONS:
 5. QUICK_REFERENCE: set SHOW to true for any table where facts contain matching data (transaction_types → TRANSACTION_TYPE_TABLE, auth_groups → AUTH_GROUP_TABLE, include_files → INCLUDE_FILES_TABLE).
 6. APPROVAL_WORKFLOW: set SHOW to true if facts.approval_workflow.exists is true.
 7. All boolean SHOW values must be true or false (JSON booleans, not strings).
-8. QAD_STANDARD_REPLACEMENT: always set SHOW to true. Use ONLY the KB EVIDENCE above to populate this accurately. For each major business capability of this system, find the closest standard QAD native module/feature in the cited chunks. CRITICAL — the "Available Since" column MUST be grounded:
+8. QAD_STANDARD_REPLACEMENT: always set SHOW to true. Use ONLY the KB EVIDENCE above to populate this accurately. For each major business capability, find the closest standard QAD native module/feature in the cited chunks.
+
+   CRITICAL — score by CAPABILITY PARITY, not IMPLEMENTATION PARITY:
+   • The question is "can the BUSINESS OUTCOME be achieved with standard QAD?", NOT "does QAD reproduce every implementation detail of this code?"
+   • If the custom code is a thin wrapper around standard QAD programs/tables (e.g. it CALLS rqrqmt.p, READS rqm_mstr, and just adds JSON formatting / email-via-mailx / a custom report layout on top), that's FULL replaceability — the underlying capability already lives in standard QAD; only the wrapper goes away.
+   • Differences in data format (JSON vs HTML), file output, transport (mailx vs SMTP API), or UI layout do NOT downgrade feasibility. They are reconfiguration, not loss of capability.
+   • Mark "Partial" only when standard QAD covers MOST of the business outcome but specific BUSINESS RULES (calculations, validations, routing logic) would still need custom development.
+   • Mark "Not Available" only when there is no native QAD module for the underlying business outcome at all (rare; should be cited explicitly from the chunks).
+
+   "Available Since" column — MUST be grounded:
    - If a chunk explicitly mentions a version (e.g. "since QAD 2019 SE", "introduced in Adaptive 2024 EE", "new in QAD Adaptive 2025"), use that exact phrase.
-   - Otherwise default to "QAD Adaptive 2025" (the version covered by our KB). NEVER invent older version codes like "QAD 2019 SE" or "QAD Cloud EE 2022" without an explicit citation in the chunks above.
-   - If the KB shows no native alternative for a capability, include the row anyway with "Not Available" feasibility and explain in RECOMMENDATION_DETAIL.
+   - Otherwise default to "QAD Adaptive 2025" (the version covered by our KB). NEVER invent older version codes without explicit citation.
+
+   RECOMMENDATION (overall) rules:
+   - "Full Replacement Possible" — every row is Full, OR rows are Full/Partial with only formatting/delivery/UI differences (no business-rule gaps).
+   - "Partial Replacement" — at least one row has genuine business-rule gaps that need redevelopment as Business Events / customisation framework / custom logic.
+   - "Keep Custom — No Native Alternative" — at least one row is "Not Available" AND that capability is critical.
+
    Name real QAD modules from the chunks (e.g. "QAD Requisition Management", "QAD Procurement", "QAD Business Events", "QAD Action Centers"). Do not name modules absent from the evidence.
 
 Return ONLY valid JSON:
