@@ -561,6 +561,11 @@ def ingest_pdf(pdf_path: Path, policy: dict) -> Iterable[Chunk]:
 
     for e in entries:
         title = e["title"]
+        # Skip empty / single-char titles — these are usually TOC bookmarks
+        # the PDF generator emitted with no real heading text.
+        if len(title.strip()) < 3:
+            skipped += 1
+            continue
         # Universal skip
         if UNIVERSAL_PDF_SKIP_RE.match(title):
             skipped += 1
@@ -588,6 +593,17 @@ def ingest_pdf(pdf_path: Path, policy: dict) -> Iterable[Chunk]:
 
         text = normalise_text(text)
         if len(text) < MIN_CHUNK_CHARS:
+            continue
+
+        # Quality skip: TOC pages (lots of "...... 247" dotted-leader lines)
+        toc_lines = len(re.findall(r"\.{3,}\s*\d+\s*\n", text + "\n"))
+        if toc_lines >= 5:
+            skipped += 1
+            continue
+        # Quality skip: cover / boilerplate pages (mostly repeated lines)
+        nonblank = [ln.strip() for ln in text.split("\n") if ln.strip()]
+        if len(nonblank) >= 6 and (len(set(nonblank)) / len(nonblank)) < 0.35:
+            skipped += 1
             continue
 
         breadcrumb_str = " > ".join([base_title] + e["breadcrumb"] + [title])
