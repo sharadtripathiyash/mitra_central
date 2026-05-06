@@ -160,15 +160,18 @@ SOURCE_POLICIES: dict[str, dict] = {
         "source_doc": "release_notes_2025",
         "module":     "All Modules",
     },
-    "QAD_Warehousing_2025_Adaptive_User_Guide.pdf": {
+    "BusinessEvents_UG_QADAdaptive_v1_0.pdf": {
+        "policy":     "pdf_overview",
+        "source_doc": "business_events_ug_v1_0",
+        "module":     "Integration",
+    },
+    # Warehousing UG — when downloaded (filename TBC, likely
+    # Warehousing_UG_QADAdaptive_v2025.pdf or similar). Add the actual filename
+    # as a key here when sourced.
+    "Warehousing_UG_QADAdaptive_v2025.pdf": {
         "policy":     "pdf_overview",
         "source_doc": "warehousing_ug_2025",
         "module":     "Warehousing",
-    },
-    "QAD_Adaptive_Business_Events_1_0_User_Guide.pdf": {
-        "policy":     "pdf_overview",
-        "source_doc": "business_events_ug_2025",
-        "module":     "Integration",
     },
 
     # ── dev/ ────────────────────────────────────────────────────────────────
@@ -178,13 +181,13 @@ SOURCE_POLICIES: dict[str, dict] = {
         "module":     "QAD Enterprise Platform",
         "topic":      "platform_developer",
     },
-    "QAD_Adaptive_2025_Implementation_Guide.pdf": {
+    "CI_ImG_v2025.pdf": {
         "policy":     "pdf_full",
         "source_doc": "implementation_guide_2025",
         "module":     "Platform",
         "topic":      "implementation",
     },
-    "QAD_Adaptive_2025_Security_Administration_Guide.pdf": {
+    "Security_AG_QADAdaptive_v2025.pdf": {
         "policy":     "pdf_full",
         "source_doc": "security_admin_guide_2025",
         "module":     "Platform",
