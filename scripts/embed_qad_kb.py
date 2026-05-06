@@ -193,23 +193,37 @@ SOURCE_POLICIES: dict[str, dict] = {
 }
 
 
-# ── Section-name filters for User Guides on pdf_overview policy ───────────────
+# ── Section-name filters for PDFs ─────────────────────────────────────────────
 #
-# A topic is kept iff its title (or any ancestor) matches one of OVERVIEW_RE,
-# AND no part of the title matches PROCEDURE_RE. This filter implements the
-# "capability-only" rule for User Guides without losing chapter intros.
-
-OVERVIEW_RE = re.compile(
-    r"(^|\b)(Overview|Introduction|Concepts?|Understanding|About|"
-    r"Key\s+Features?|Capabilities|Architecture|Getting\s+Started\s+with)"
-    r"(\b|$)",
-    re.I,
-)
+# Both pdf_full and pdf_overview policies share PROCEDURE_RE — sections whose
+# title matches it are skipped because they're procedural noise (click-by-click
+# instructions, field reference tables, report parameters) rather than
+# capability description.
+#
+# pdf_overview additionally skips USER_GUIDE_DEEP_RE — User-Guide-specific
+# deep-configuration sections that don't help replaceability scoring.
+#
+# Original v1 of this script also required pdf_overview sections to match an
+# OVERVIEW_RE allowlist (Overview / Concepts / Introduction / etc.) — that
+# turned out far too aggressive: a Warehousing UG section called "Receiving
+# Inventory" is exactly the capability content we want, but didn't match the
+# allowlist so was dropped. We now keep anything that survives PROCEDURE_RE
+# and the User Guide deep-skip; capability content for replaceability flows
+# through naturally.
 
 PROCEDURE_RE = re.compile(
     r"(^|\b)(Maintenance|Maintain|Creating|Modifying|Deleting|Procedure|"
     r"Steps?|Field\s+Reference|Browse|Report\s+Parameters?|Reports?|"
     r"How\s+to)(\b|$)",
+    re.I,
+)
+
+# Extra skip for pdf_overview only — User-Guide-specific noise that survives
+# PROCEDURE_RE but isn't capability content for replaceability.
+USER_GUIDE_DEEP_RE = re.compile(
+    r"(^|\b)(Setting\s+Up|Setup\s+Considerations|Configuration\s+Reference|"
+    r"Window\s+Help|Field-by-Field|Output\s+Files?|Glossary|"
+    r"Workbench|Database\s+Tables?|Data\s+Model)(\b|$)",
     re.I,
 )
 
@@ -555,10 +569,10 @@ def ingest_pdf(pdf_path: Path, policy: dict) -> Iterable[Chunk]:
         if PROCEDURE_RE.search(title):
             skipped += 1
             continue
-        # Overview-only filter for User Guides
+        # Extra deep-detail skip applies only to pdf_overview (User Guides)
         if overview_only:
             chain = e["breadcrumb"] + [title]
-            if not any(OVERVIEW_RE.search(t) for t in chain):
+            if any(USER_GUIDE_DEEP_RE.search(t) for t in chain):
                 skipped += 1
                 continue
 
