@@ -13,5 +13,6 @@ qdrant-client==1.11.3
 python-docx==1.1.2
 duckduckgo-search==6.3.0
 # QAD knowledge base embedder (scripts/embed_qad_kb.py)
-pymupdf==1.24.10
+# Note: 1.24.10 does NOT ship Python 3.13 wheels — bumped to 1.25.x which does.
+pymupdf>=1.25.0,<2.0
 beautifulsoup4==4.12.3
