@@ -165,10 +165,7 @@ SOURCE_POLICIES: dict[str, dict] = {
         "source_doc": "business_events_ug_v1_0",
         "module":     "Integration",
     },
-    # Warehousing UG — when downloaded (filename TBC, likely
-    # Warehousing_UG_QADAdaptive_v2025.pdf or similar). Add the actual filename
-    # as a key here when sourced.
-    "Warehousing_UG_QADAdaptive_v2025.pdf": {
+    "Warehousing_UG_v2025Adaptive.pdf": {
         "policy":     "pdf_overview",
         "source_doc": "warehousing_ug_2025",
         "module":     "Warehousing",
