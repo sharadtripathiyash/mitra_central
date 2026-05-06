@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     qdrant_api_key: str = ""
     qdrant_collection_apex: str = "qad_docs"
     qdrant_collection_custom: str = "qad_custom_docs"
+    qdrant_collection_features: str = "qad_adaptive_features"
+    qdrant_collection_dev: str = "qad_adaptive_dev"
 
 
 @lru_cache

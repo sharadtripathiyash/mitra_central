@@ -17,3 +17,11 @@ logs/
 dump.rdb
 node_modules/
 app/static/js/dist/
+
+# QAD knowledge base — content is too large for git, structure is preserved via .gitkeep
+data/qad_kb/features/*
+data/qad_kb/dev/*
+data/qad_kb/.embed_state.json
+!data/qad_kb/features/.gitkeep
+!data/qad_kb/dev/.gitkeep
+!data/qad_kb/README.md
