@@ -16,7 +16,11 @@ Documentation pipeline (3 logical phases — only 2 sequential LLM passes):
     Pass 1 (extract facts JSON)
             │
             ▼
-    QAD Adaptive ERP web research (4 DDG queries in parallel via to_thread)
+    QAD Adaptive research:
+      Primary  → vector-search Qdrant `qad_adaptive_features` (online help,
+                 RN, Warehousing UG, Business Events UG). Multiple parallel
+                 queries — broad + per-capability — dedup, rank by score.
+      Fallback → OpenAI live web search ONCE if KB best score < 0.5.
             │
             ▼
     asyncio.gather:
@@ -37,9 +41,11 @@ from pathlib import Path
 
 from fastapi import WebSocket
 
+from app.core.config import settings
 from app.core.llm import groq_chat, openai_stream, openai_chat, openai_search, parse_json_response
 from app.core.session import append_turn, load_history, set_context, get_context
 from app.core.ws import send_done, send_error, send_frame, send_status, send_token
+from app.vector.qdrant import search_chunks
 from app.agents.qad_zone.programs import list_modules, load_module_code, load_all_code_summary
 from app.agents.qad_zone.doc_generator import generate_document
 from app.agents.qad_zone.modernisation import analyse_modernisation
@@ -245,26 +251,131 @@ RULES:
 
 # ── Mode 2: Documentation ─────────────────────────────────────────────────────
 
-# Hard timeout for the OpenAI web-search call (seconds). Web research is
-# best-effort enrichment for the Summary tab + Pass 2's QAD_STANDARD_REPLACEMENT
-# section — it must NEVER block the documentation pipeline indefinitely.
+# Hard timeout for the OpenAI web-search FALLBACK call (seconds). The primary
+# research path is now the local Qdrant KB; the web search only runs when the
+# KB has insufficient coverage for this customisation's module/capabilities.
 _RESEARCH_TIMEOUT_SECS = 45
+
+# KB retrieval tuning
+_KB_MIN_SCORE        = 0.5   # If best chunk's cosine score < this, fall back to web.
+_KB_TOP_K_PER_QUERY  = 6     # Vector-search results per individual query.
+_KB_FINAL_TOP_K      = 18    # Cap on total chunks fed to downstream prompts (after dedup).
+
+
+async def _kb_research_qad_adaptive(facts: dict) -> list[dict]:
+    """Vector-search the features collection in parallel — one broad query
+    plus one focused query per extracted capability — then dedup across
+    queries and return the top ``_KB_FINAL_TOP_K`` chunks by score.
+
+    Multi-query (rather than one big query) gives every capability a fair
+    shot at retrieving its own best evidence. Dedup by (source_path,
+    section) prevents the same chunk dominating the result set just
+    because several capabilities matched it.
+
+    Returns chunks sorted by score descending. Empty list = nothing to use.
+    """
+    sys_full     = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
+    module       = facts.get("module") or ""
+    capabilities = facts.get("capabilities") or []
+
+    # Broad query covers the system as a whole; focused queries hit per-capability evidence.
+    queries = [
+        f"What does standard QAD Adaptive ERP natively provide for "
+        f"{sys_full}{(' in the ' + module) if module else ''}?"
+    ]
+    for cap in capabilities[:8]:
+        queries.append(f"Does QAD Adaptive natively support: {cap}")
+
+    tasks = [
+        search_chunks(q, collection=settings.qdrant_collection_features, top_k=_KB_TOP_K_PER_QUERY)
+        for q in queries
+    ]
+    per_query = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Dedup by (source_path, section) — keep best score per key.
+    best: dict[str, dict] = {}
+    for results in per_query:
+        if isinstance(results, Exception):
+            logger.warning("KB query failed: %s", results)
+            continue
+        for r in results:
+            meta = r.get("metadata") or {}
+            key = f"{meta.get('source_path','')}#{meta.get('section','')}"
+            if key not in best or r.get("score", 0) > best[key].get("score", 0):
+                best[key] = r
+
+    return sorted(best.values(), key=lambda c: -c.get("score", 0))[:_KB_FINAL_TOP_K]
+
+
+def _format_kb_chunks(chunks: list[dict]) -> str:
+    """Format chunks into the citation-style text shape Pass 2 / Summary
+    prompts already know how to consume. Mirrors OpenAI search output so
+    the downstream prompts stay unchanged.
+    """
+    if not chunks:
+        return "[No relevant content found in QAD Adaptive knowledge base.]"
+    parts = []
+    for i, c in enumerate(chunks, 1):
+        meta       = c.get("metadata") or {}
+        source     = meta.get("source_doc", "qad_kb")
+        breadcrumb = meta.get("breadcrumb") or meta.get("title", "")
+        version    = meta.get("version", "")
+        score      = float(c.get("score", 0.0))
+        text       = (c.get("text") or "").strip()
+        loc = f"{source}"
+        if version:
+            loc += f" [{version}]"
+        if breadcrumb:
+            loc += f" — {breadcrumb}"
+        parts.append(f"[{i}] Source: {loc}  (relevance={score:.3f})\n{text}")
+    return "\n\n".join(parts)
 
 
 async def _research_qad_adaptive(facts: dict) -> str:
-    """Run a single OpenAI web-search call covering QAD Adaptive ERP coverage.
+    """Find evidence about what standard QAD Adaptive natively offers vs
+    this customisation's capabilities.
 
-    Uses OpenAI's `gpt-4o-search-preview` model (live web search) instead of
-    the previous DuckDuckGo path — DDG was unreliable (frequent rate-limits
-    and silent hangs even from parallel requests). One LLM-orchestrated
-    search produces a richer, citation-bearing summary than 4 separate
-    keyword queries.
+    Strategy:
+      1. Vector-search the local ``qad_adaptive_features`` collection
+         (built from QAD's online help, Release Notes 2025, Warehousing UG,
+         Business Events UG). Multiple parallel queries — one broad + one
+         per capability — then dedup and rank by score.
+      2. If the best chunk scores >= ``_KB_MIN_SCORE`` → use KB results.
+         **No internet call.** Citations come from your authoritative QAD
+         documentation.
+      3. Otherwise (KB had insufficient coverage for this module/system)
+         → fall back ONCE to OpenAI live web search. Hard-bounded by
+         ``_RESEARCH_TIMEOUT_SECS`` so a slow/silent search never wedges
+         the pipeline.
 
-    Hard-bounded by `_RESEARCH_TIMEOUT_SECS`. On any failure (timeout,
-    network, model error) returns a short marker string and logs the cause —
-    the documentation pipeline continues; the Summary tab simply scores
-    Replaceability/Confidence lower and ships an empty Sources list.
+    Same return shape as before — a single string consumed by Pass 2 and
+    ``_generate_summary``. Demo modules (MRN/DOA/RTDC) never reach this
+    function — they're intercepted on the frontend.
     """
+    # ── KB first ───────────────────────────────────────────────────────
+    logger.info("QAD Adaptive research: querying features KB (collection=%s)",
+                settings.qdrant_collection_features)
+    try:
+        chunks = await _kb_research_qad_adaptive(facts)
+    except Exception as exc:
+        logger.warning("KB research raised — will fall back to web: %s", exc)
+        chunks = []
+
+    best_score = chunks[0].get("score", 0.0) if chunks else 0.0
+    logger.info("KB research: %d chunks retrieved, best score=%.3f",
+                len(chunks), best_score)
+
+    if chunks and best_score >= _KB_MIN_SCORE:
+        logger.info("Using KB results — no internet call.")
+        return _format_kb_chunks(chunks)
+
+    # ── Fallback: OpenAI live web search (one-shot, time-bounded) ──────
+    logger.warning(
+        "KB had insufficient coverage (best score=%.3f < %.3f) — "
+        "falling back to web search.",
+        best_score, _KB_MIN_SCORE,
+    )
+
     sys_full     = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
     module_area  = facts.get("module") or ""
     capabilities = facts.get("capabilities") or []
@@ -285,20 +396,19 @@ async def _research_qad_adaptive(facts: dict) -> str:
         "End with a list of the 4-6 most useful source URLs you found."
     )
 
-    logger.info("QAD Adaptive research: 1 OpenAI web-search call (timeout=%ds)", _RESEARCH_TIMEOUT_SECS)
     try:
         text = await asyncio.wait_for(
             openai_search(query, max_tokens=2000),
             timeout=_RESEARCH_TIMEOUT_SECS,
         )
-        logger.info("QAD Adaptive research complete: %d chars", len(text))
+        logger.info("Web fallback complete: %d chars", len(text))
         return text
     except asyncio.TimeoutError:
-        logger.warning("QAD Adaptive research timed out (>%ds)", _RESEARCH_TIMEOUT_SECS)
-        return f"[Web research timed out after {_RESEARCH_TIMEOUT_SECS}s — proceeding without it.]"
+        logger.warning("Web fallback timed out (>%ds)", _RESEARCH_TIMEOUT_SECS)
+        return f"[KB had no useful matches and web research timed out after {_RESEARCH_TIMEOUT_SECS}s.]"
     except Exception as exc:
-        logger.warning("QAD Adaptive research failed: %s", exc)
-        return f"[Web research failed: {exc} — proceeding without it.]"
+        logger.warning("Web fallback failed: %s", exc)
+        return f"[KB had no useful matches and web research failed: {exc}]"
 
 
 async def _generate_summary(raw1: str, web_research: str) -> dict | None:
