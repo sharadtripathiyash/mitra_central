@@ -723,6 +723,9 @@ def discover_sources() -> list[tuple[str, Path, str, dict]]:
             continue
         for entry in sorted(root_dir.iterdir()):
             name = entry.name
+            # Skip dotfiles / git plumbing — .gitkeep, .gitignore, .DS_Store etc.
+            if name.startswith("."):
+                continue
             policy = SOURCE_POLICIES.get(name)
             if not policy:
                 log.warning("no policy for '%s' in %s — skipping. "
