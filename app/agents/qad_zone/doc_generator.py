@@ -629,9 +629,10 @@ def _build_qad_replacement_section(doc: Document, REP: dict) -> None:
 
     # Info banner
     _info(doc, (
-        "This section is generated using live web research. It analyses whether standard "
-        "QAD ERP native modules can replace or partially replace this customization, "
-        "and identifies the QAD version in which that functionality became available."
+        "This section is grounded in the QAD Adaptive knowledge base (online help, "
+        "Release Notes, User Guides). It analyses whether standard QAD Adaptive ERP "
+        "native modules can replace or partially replace this customization, and "
+        "identifies the QAD version in which that functionality became available."
     ))
 
     if _has(REP.get("INTRO_PARA")):

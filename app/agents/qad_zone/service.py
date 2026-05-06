@@ -419,18 +419,18 @@ async def _generate_summary(raw1: str, web_research: str) -> dict | None:
     """
     summary_system = (
         "You are a senior QAD ERP modernisation analyst. "
-        "Read the extracted facts about a custom QAD Progress 4GL system and the QAD Adaptive ERP web research, "
-        "then produce a single executive-summary JSON for business stakeholders. "
+        "Read the extracted facts about a custom QAD Progress 4GL system and the cited QAD Adaptive ERP "
+        "knowledge-base evidence, then produce a single executive-summary JSON for business stakeholders. "
         "Return ONLY valid JSON — no markdown fences, no preamble, no extra text."
     )
 
-    summary_prompt = f"""Given the extracted code facts and the QAD Adaptive ERP web research below,
+    summary_prompt = f"""Given the extracted code facts and the QAD Adaptive knowledge-base evidence below,
 produce an executive summary JSON for a business audience.
 
 EXTRACTED FACTS:
 {raw1}
 
-QAD ADAPTIVE ERP WEB RESEARCH:
+QAD ADAPTIVE KNOWLEDGE BASE EVIDENCE (cited chunks from official QAD documentation):
 {web_research}
 
 Return ONLY valid JSON with this exact structure (all keys required):
@@ -448,18 +448,18 @@ Return ONLY valid JSON with this exact structure (all keys required):
   "businessImpact":  "High",
   "migrationEffort": "High",
   "sources": [
-    {{"label": "1-line title of a useful web research result", "url": "https://..."}}
+    {{"label": "Citation in 'source_doc — breadcrumb' shape from the KB EVIDENCE block (e.g. 'online_help_2025 — Purchasing > Requisition > Requisition Approvals Overview'). If the chunk also carries a URL, include it; otherwise set url to null.", "url": null}}
   ]
 }}
 
 SCORING GUIDANCE:
-- replaceability (integer 0-100): based on QAD Adaptive ERP web research, what percentage of this custom system's capabilities are natively covered by standard QAD Adaptive today? 100 = fully replaceable, 50 = roughly half, 0 = entirely custom.
-- confidence (integer 0-100): higher when the web research has clear matches and the facts are rich and well-populated; lower when ambiguous or sparse.
+- replaceability (integer 0-100): based on the KB EVIDENCE chunks above, what percentage of this custom system's capabilities are natively covered by standard QAD Adaptive today? 100 = fully replaceable, 50 = roughly half, 0 = entirely custom or no KB coverage.
+- confidence (integer 0-100): higher when KB chunks score well, multiple chunks support each capability, and the facts are rich. Lower when chunks are sparse, scores are weak, or facts are thin.
 - businessImpact: "High" = critical to daily business operations / regulatory or financial flow; "Medium" = important but contained to a single department; "Low" = nice-to-have or used infrequently.
 - migrationEffort: "High" = significant rework (custom logic, integrations, data migration); "Medium" = moderate development effort; "Low" = minimal changes needed.
 
 OUTPUT REQUIREMENTS (strict):
-- 'sources' MUST be derived from real URLs that appear in the web research above. Pick the 3-5 most relevant. If the research is empty, return an empty array — never invent URLs.
+- 'sources' MUST come from the KB EVIDENCE block above. Pick the 3-5 chunks most relevant to the system's headline capabilities. Use the 'source_doc — breadcrumb' label format and url: null. NEVER invent URLs and never reference web pages that don't appear in the evidence.
 - 'tags' = functional business areas, never technical layers (no 'Backend', 'Database', etc.).
 - 'replaceability' and 'confidence' MUST be JSON integers (not strings).
 - 'businessImpact' and 'migrationEffort' MUST be exactly one of "High", "Medium", "Low"."""
@@ -645,10 +645,11 @@ Extract ONLY what you can find in the code. Omit keys with no evidence."""
         logger.warning("PASS1 failed to parse — falling back to single-pass")
         facts = {}
 
-    # ── WEB RESEARCH: QAD Adaptive ERP coverage (shared by Pass 2 + Summary) ─
+    # ── RESEARCH: QAD Adaptive coverage from KB (web fallback) ──────────────
     await send_status(ws, "Researching QAD Adaptive ERP coverage…")
     web_replacement_research = await _research_qad_adaptive(facts)
-    logger.info("Web research complete: %d chars", len(web_replacement_research))
+    logger.info("Adaptive-research complete: %d chars (KB-first; web only if KB sparse)",
+                len(web_replacement_research))
 
     # ── PARALLEL: Pass 2 (Word doc) + Summary (executive JSON) ───────────────
     await send_status(ws, "Building documentation & executive summary in parallel…")
@@ -669,7 +670,8 @@ VERBOSITY RULES (strictly enforced):
 EXTRACTED FACTS:
 {raw1}
 
-WEB RESEARCH — STANDARD QAD NATIVE REPLACEMENT ANALYSIS:
+QAD ADAPTIVE KNOWLEDGE BASE EVIDENCE (cited chunks from official QAD documentation —
+online help, Release Notes 2025, Warehousing UG, Business Events UG):
 {web_replacement_research}
 
 CRITICAL INSTRUCTIONS:
@@ -680,7 +682,11 @@ CRITICAL INSTRUCTIONS:
 5. QUICK_REFERENCE: set SHOW to true for any table where facts contain matching data (transaction_types → TRANSACTION_TYPE_TABLE, auth_groups → AUTH_GROUP_TABLE, include_files → INCLUDE_FILES_TABLE).
 6. APPROVAL_WORKFLOW: set SHOW to true if facts.approval_workflow.exists is true.
 7. All boolean SHOW values must be true or false (JSON booleans, not strings).
-8. QAD_STANDARD_REPLACEMENT: always set SHOW to true. Use the WEB RESEARCH section above to populate this accurately. For each major business capability of this system, find the closest standard QAD native module/feature from the research and state which QAD version introduced it. If the research shows no native alternative exists, still include the row with "Not Available" in the feasibility column and explain why in RECOMMENDATION_DETAIL. Be specific — name actual QAD modules (e.g. "QAD Requisition Management", "QAD Procurement", "QAD Financials AP").
+8. QAD_STANDARD_REPLACEMENT: always set SHOW to true. Use ONLY the KB EVIDENCE above to populate this accurately. For each major business capability of this system, find the closest standard QAD native module/feature in the cited chunks. CRITICAL — the "Available Since" column MUST be grounded:
+   - If a chunk explicitly mentions a version (e.g. "since QAD 2019 SE", "introduced in Adaptive 2024 EE", "new in QAD Adaptive 2025"), use that exact phrase.
+   - Otherwise default to "QAD Adaptive 2025" (the version covered by our KB). NEVER invent older version codes like "QAD 2019 SE" or "QAD Cloud EE 2022" without an explicit citation in the chunks above.
+   - If the KB shows no native alternative for a capability, include the row anyway with "Not Available" feasibility and explain in RECOMMENDATION_DETAIL.
+   Name real QAD modules from the chunks (e.g. "QAD Requisition Management", "QAD Procurement", "QAD Business Events", "QAD Action Centers"). Do not name modules absent from the evidence.
 
 Return ONLY valid JSON:
 
@@ -897,19 +903,19 @@ Return ONLY valid JSON:
   }},
   "QAD_STANDARD_REPLACEMENT": {{
     "SHOW": true,
-    "INTRO_PARA": "3-5 sentence paragraph: based on web research and facts, explain whether standard QAD ERP provides native functionality that could replace or partially replace this customization. Mention the business capability being compared, what standard QAD offers, and the overall conclusion (full replacement possible / partial replacement / keep custom).",
+    "INTRO_PARA": "3-5 sentence paragraph: based on the KB EVIDENCE chunks above and the extracted facts, explain whether standard QAD Adaptive ERP provides native functionality that could replace or partially replace this customization. Mention the business capability being compared, what standard QAD offers (citing the source_doc/breadcrumb where useful), and the overall conclusion (full replacement possible / partial replacement / keep custom).",
     "REPLACEMENT_TABLE": {{
       "headers": ["Business Capability", "Custom Implementation (Current)", "Standard QAD Native Module / Feature", "Available Since (QAD Version)", "Replacement Feasibility"],
       "rows": [
-        ["One row per major business capability of this system. For each: describe what the custom code does | describe the closest standard QAD module/feature found in web research | the QAD version it was introduced (e.g. 'QAD 2019 SE', 'QAD Cloud EE 2022') | Feasibility: Full / Partial / Not Available"]
+        ["One row per major business capability of this system. For each: describe what the custom code does | describe the closest standard QAD module/feature cited in the KB EVIDENCE | the version per the chunk (use exact phrase if cited; default to 'QAD Adaptive 2025' if no specific version is mentioned; NEVER invent older versions) | Feasibility: Full / Partial / Not Available"]
       ]
     }},
     "RECOMMENDATION": "Full Replacement Possible | Partial Replacement | Keep Custom — No Native Alternative",
-    "RECOMMENDATION_DETAIL": "3-5 sentence paragraph explaining the recommendation: which capabilities can switch to standard, which require custom logic to remain, any data migration considerations, and the suggested approach. Be specific about QAD module names and versions from the web research.",
+    "RECOMMENDATION_DETAIL": "3-5 sentence paragraph explaining the recommendation: which capabilities can switch to standard, which require custom logic to remain, any data migration considerations, and the suggested approach. Be specific about QAD module names from the KB EVIDENCE — do not invent module names not present in the chunks.",
     "GAPS_IF_REPLACED": [
-      "Each gap as a complete sentence: what this custom system does that standard QAD cannot do even after migration — from web research findings"
+      "Each gap as a complete sentence: what this custom system does that standard QAD cannot do even after migration — derived strictly from the KB EVIDENCE (i.e. capabilities not covered by any cited chunk)"
     ],
-    "VERSION_AVAILABILITY_NOTE": "1-2 sentence note on which QAD version(s) first introduced the relevant standard functionality. Reference specific release names/years from the web research (e.g. 'This functionality was introduced in QAD Cloud EE 2021.1 as part of the Procurement module enhancements.'). Omit key if no version data found in research."
+    "VERSION_AVAILABILITY_NOTE": "1-2 sentence note on which QAD version(s) first introduced the relevant standard functionality, ONLY if a version is explicitly cited in the KB EVIDENCE chunks above. If no version is cited, omit this key entirely. Never fabricate version codes."
   }}
 }}
 
