@@ -867,7 +867,7 @@ Return ONLY valid JSON with this exact structure — populate every field you ca
   "total_programs": "Total count of .p and .i files in the code",
   "business_purpose": "2-3 sentences: what business problem this system solves",
   "why_custom": "2-3 sentences: why standard QAD is insufficient, what gap this fills",
-  "capabilities": ["capability 1", "capability 2", "capability 3"],
+  "capabilities": ["BUSINESS OUTCOMES this whole system delivers — NOT implementation steps. Stand back from the files and ask 'what does this system DO at a business level'. For a thin wrapper around standard QAD programs, this is typically 1-2 outcomes. For a full custom module, this is typically 4-8 outcomes. EXAMPLES OF GOOD CAPABILITIES: 'Notify approvers of pending requisitions with details and approver list', 'Manage returnable / non-returnable delivery challans with multi-level approval'. EXAMPLES OF BAD CAPABILITIES (these are implementation steps, NEVER list these): 'Format requisition data as JSON', 'Build approver list from rqalttd.i temp-table', 'Send email via OS-COMMAND mailx', 'Read user mail address from usr_mstr'. Implementation details are NOT capabilities."],
   "standard_qad_comparison": [
     {{"feature": "feature name", "standard": "what standard QAD does", "custom": "what this system does differently"}}
   ],
@@ -1030,6 +1030,14 @@ CRITICAL INSTRUCTIONS:
    - "Keep Custom — No Native Alternative" — at least one row is "Not Available" AND that capability is critical.
 
    Name real QAD modules from the chunks (e.g. "QAD Requisition Management", "QAD Procurement", "QAD Business Events", "QAD Action Centers"). Do not name modules absent from the evidence.
+
+9. ROW-SHAPE RULE (critical — prevents fragmenting one capability into many "Partial" rows):
+   The REPLACEMENT_TABLE rows are CORE BUSINESS OUTCOMES, not facts.capabilities entries.
+   • First, group facts.capabilities into the 1-N actual business outcomes the system delivers end-to-end. For a thin wrapper around standard QAD programs (e.g. CALLS rqrqmt.p, READS rqm_mstr, then formats output and sends an email), the wrapper delivers ONE outcome ("notify approver of pending requisition"), no matter how many internal steps facts.capabilities lists. ONE row.
+   • For a full custom module (15+ files, multiple business processes), there will be 4-8 outcomes — one row per genuine business outcome.
+   • NEVER produce a row for an internal implementation step (formatting, list-retrieval, data-extraction, transport, UI layout). Those are HOW the outcome is delivered, not the outcome itself.
+   • A common failure mode is to take 3 facts.capabilities items like "Generate notification content / Retrieve approver list / Build email" and produce 3 rows all marked "Partial". This is wrong. Those are 3 internal steps of ONE outcome — produce ONE row, score Full (since QAD natively delivers the same outcome).
+   • After grouping: if the resulting count of rows is the same as len(facts.capabilities), pause and re-check whether you've actually consolidated into outcomes or just copied the implementation-step list. The latter produces noisy "all Partial" tables.
 
 Return ONLY valid JSON:
 
@@ -1250,7 +1258,7 @@ Return ONLY valid JSON:
     "REPLACEMENT_TABLE": {{
       "headers": ["Business Capability", "Custom Implementation (Current)", "Standard QAD Native Module / Feature", "Available Since (QAD Version)", "Replacement Feasibility"],
       "rows": [
-        ["One row per major business capability of this system. For each: describe what the custom code does | describe the closest standard QAD module/feature cited in the KB EVIDENCE | the version per the chunk (use exact phrase if cited; default to 'QAD Adaptive 2025' if no specific version is mentioned; NEVER invent older versions) | Feasibility: Full / Partial / Not Available"]
+        ["ONE row per CORE BUSINESS OUTCOME — NOT one row per facts.capabilities entry. Step 1: read facts.capabilities and group them into 1-N core business outcomes. Step 2: produce ONE row per outcome. CRITICAL: if the system is a thin wrapper that delivers ONE business outcome via several internal steps (e.g. 'extract data + build approver list + format + send email' = ONE outcome 'notify approver of pending requisition'), produce ONE row, not three or four. Implementation steps (formatting, list-building, transport, data extraction) are NEVER separate rows. Each row's columns: describe what the custom code does end-to-end | the closest standard QAD module/feature cited in the KB EVIDENCE | version per chunk (default 'QAD Adaptive 2025' if not cited; NEVER invent older versions) | Feasibility: Full / Partial / Not Available — see the per-row scoring rules in the CRITICAL INSTRUCTIONS above."]
       ]
     }},
     "RECOMMENDATION": "Full Replacement Possible | Partial Replacement | Keep Custom — No Native Alternative",
