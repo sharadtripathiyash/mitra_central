@@ -441,7 +441,7 @@ Return ONLY valid JSON with this exact structure (all keys required):
   "executiveSummary": "5-7 sentence paragraph for business stakeholders: what the system does, what business problem it solves, key capabilities, integration points with QAD, audit/workflow features. Do NOT describe code structure, file names, or programming patterns.",
   "tags": ["2-4 functional area tags, e.g. Sales, Inventory, Customer Service, Finance, Manufacturing, Workflow, Cross-module"],
   "keyCapabilities": [
-    "8-10 capability sentences — each is one complete business capability statement (similar to the existing facts.capabilities entries but expanded for business clarity)"
+    "ONLY the capabilities the system ACTUALLY HAS — list as many as truly exist, no more. Typically 2-6 for thin wrappers, 6-12 for full custom modules. Each item is one complete business capability statement based on facts.capabilities. DO NOT pad with generic benefits like 'improves efficiency', 'enhances compliance', 'facilitates communication' — those are outcomes, not capabilities. If the system only does 3 things, list 3."
   ],
   "replaceability": 65,
   "confidence":     85,
@@ -460,6 +460,8 @@ SCORING GUIDANCE:
     20-40 = only a small portion of outcomes have native equivalents; mostly unique business logic.
     0-15 = no meaningful native coverage.
   IMPORTANT: a custom email-notification wrapper that calls standard QAD's requisition/approval programs and just changes the format (JSON vs HTML) or transport (mailx vs SMTP) is HIGH replaceability (90%+) — NOT Partial. The underlying capability already lives in QAD; only the wrapper goes away.
+
+  ALSO IMPORTANT: replaceability is scored on the UNDERLYING SYSTEM, not on the count of bullets in keyCapabilities. A simple wrapper described in 8 bullets is still 85-95% replaceable; do not average the score down because the bullet list happens to be long. Ignore generic outcome statements ("enhances compliance", "improves efficiency", "facilitates communication") when scoring — they are not capabilities, they are downstream benefits that any ERP achieves.
 
 - confidence (integer 0-100): higher when KB chunks score well, multiple chunks support each capability, and the facts are rich. Lower when chunks are sparse, scores are weak, or facts are thin.
 
@@ -733,7 +735,7 @@ Return ONLY valid JSON:
     "PARA_1": "4-6 sentence paragraph: what this system does, what business problem it solves, what transaction types it handles, who uses it, and what the key outcomes are. Derived from facts.business_purpose.",
     "PARA_2": "4-6 sentence paragraph: why standard QAD is insufficient, what gap this fills, what the custom logic adds, and how it integrates with standard QAD. Derived from facts.why_custom.",
     "KEY_CAPABILITIES": [
-      "Each capability as a complete descriptive sentence — from facts.capabilities"
+      "Each capability as a complete descriptive sentence — from facts.capabilities. List ONLY what the system actually does (typically 2-6 for thin wrappers, 6-12 for full custom modules). Do NOT pad the list with generic outcome statements ('improves efficiency', 'enhances compliance', 'facilitates communication'). If the system has 3 real capabilities, list 3."
     ],
     "COMPARISON_TABLE": {{
       "headers": ["Feature", "Standard QAD", "This Custom System"],
