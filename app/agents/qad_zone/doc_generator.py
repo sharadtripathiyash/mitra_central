@@ -14,6 +14,7 @@ Design rules:
 """
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -58,6 +59,19 @@ ALT  = [FILL["WHITE"], FILL["LGRAY"]]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _slugify(name: str, *, max_len: int = 60, fallback: str = "QAD_Document") -> str:
+    """Convert a title into a filesystem- and URL-safe slug.
+
+    "Requisition Approval Workflow" → "Requisition_Approval_Workflow"
+    "RTDC — Returnable / Non-Returnable Delivery Challan"
+        → "RTDC_Returnable_Non_Returnable_Delivery_Challan"
+    """
+    if not name:
+        return fallback
+    s = re.sub(r"[^A-Za-z0-9]+", "_", str(name)).strip("_")
+    return (s[:max_len] or fallback)
+
 
 def _has(value: Any) -> bool:
     """Return True only when value carries real, non-empty content."""
@@ -1100,6 +1114,11 @@ def generate_document(title: str, sections: list[dict], *, subtitle: str = "Mitr
 
     _build_end_page(doc, sys_name, sys_full, doc_date)
 
-    filename = f"{uuid.uuid4().hex[:12]}.docx"
+    # Human-readable filename — slugified system_full_name + short hex suffix
+    # so re-uploads of the same system don't collide. Browser's "Save as"
+    # uses the URL path → users see "Requisition_Approval_Workflow_a1b2c3.docx"
+    # instead of "35b7cfd78399.docx".
+    slug = _slugify(sys_full or sys_name or "QAD_Document")
+    filename = f"{slug}_{uuid.uuid4().hex[:6]}.docx"
     doc.save(str(DOWNLOADS_DIR / filename))
     return f"/static/downloads/{filename}"

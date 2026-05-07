@@ -21,6 +21,7 @@ Section schema (each section conditional on real data — empty sections skipped
 """
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -78,6 +79,17 @@ APPROACH_FILL = {
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _slugify(name: str, *, max_len: int = 60, fallback: str = "Migration_Blueprint") -> str:
+    """Convert a title into a filesystem- and URL-safe slug.
+
+    "Requisition Approval Workflow" → "Requisition_Approval_Workflow"
+    """
+    if not name:
+        return fallback
+    s = re.sub(r"[^A-Za-z0-9]+", "_", str(name)).strip("_")
+    return (s[:max_len] or fallback)
+
 
 def _has(value: Any) -> bool:
     if value is None:
@@ -787,6 +799,9 @@ def generate_blueprint_document(blueprint: dict, *, system_full: str = "") -> st
 
     _build_end_page(doc, sys_name, doc_date)
 
-    filename = f"{uuid.uuid4().hex[:12]}_blueprint.docx"
+    # Human-readable filename — slug + short hex + _blueprint suffix.
+    # Pairs visually with the system doc: same slug, different suffix tag.
+    slug = _slugify(sys_full or sys_name or "Migration_Blueprint")
+    filename = f"{slug}_{uuid.uuid4().hex[:6]}_blueprint.docx"
     doc.save(str(DOWNLOADS_DIR / filename))
     return f"/static/downloads/{filename}"
