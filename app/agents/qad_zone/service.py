@@ -35,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import json
 import logging
 import zipfile
 from pathlib import Path
@@ -48,6 +49,7 @@ from app.core.ws import send_done, send_error, send_frame, send_status, send_tok
 from app.vector.qdrant import search_chunks
 from app.agents.qad_zone.programs import list_modules, load_module_code, load_all_code_summary
 from app.agents.qad_zone.doc_generator import generate_document
+from app.agents.qad_zone.blueprint_doc_generator import generate_blueprint_document
 from app.agents.qad_zone.modernisation import analyse_modernisation
 
 logger = logging.getLogger(__name__)
@@ -502,6 +504,290 @@ OUTPUT REQUIREMENTS (strict):
         return parsed
     except Exception as exc:
         logger.exception("Summary generation failed: %s", exc)
+        return None
+
+
+# ── Migration Blueprint (Pass 3) ─────────────────────────────────────────────
+#
+# After Pass 2 produces the System Documentation, Pass 3 produces a separate
+# Migration Blueprint Word doc — the "how to actually build the migration"
+# companion to the "what does standard QAD already cover" main doc.
+#
+# Pulls evidence from the dev collection (qad_adaptive_dev — Implementation
+# Guide, Security Admin Guide, Confluence developer pages) so the blueprint
+# can reference real configuration steps, TypeScript extension patterns,
+# Business Component definitions, Business Event subscriptions, and REST APIs.
+#
+# Demo modules (MRN/DOA/RTDC) never reach this — they're intercepted on the
+# frontend and served pre-built blueprint files from /demo-blueprint/.
+
+_KB_DEV_TOP_K_PER_QUERY = 5
+_KB_DEV_FINAL_TOP_K     = 25     # bigger budget than features — blueprint needs more context
+
+_BLUEPRINT_TIMEOUT_SECS = 120    # the Pass 3 LLM call can be heavy; give it room
+
+
+async def _kb_research_qad_dev(facts: dict, gaps: list, capabilities: list) -> list[dict]:
+    """Vector-search the dev collection for migration / extension / API content.
+
+    Multiple parallel queries:
+      • One general extension-framework query
+      • One per gap (how to bridge this gap in QAD Adaptive)
+      • One per capability (how to migrate this capability)
+    Dedup by (source_path, section), return top ``_KB_DEV_FINAL_TOP_K`` chunks.
+    """
+    sys_full = facts.get("system_full_name") or facts.get("system_name") or "QAD custom module"
+
+    queries = [
+        "QAD Enterprise Platform extension framework — TypeScript, Java, Business Components, Business Events",
+        f"Migrating to standard QAD Adaptive — implementation steps for {sys_full}",
+        "QAD Business Events subscription handler implementation",
+        "QAD Business Component definition: properties, validations, lifecycle",
+        "QAD Adaptive REST API authentication, endpoints, payload examples",
+    ]
+    for cap in (capabilities or [])[:5]:
+        if isinstance(cap, str) and cap.strip():
+            queries.append(f"How to implement on standard QAD Adaptive: {cap}")
+    for gap in (gaps or [])[:5]:
+        if isinstance(gap, str) and gap.strip():
+            queries.append(f"Implementation guide to fill this gap: {gap}")
+
+    tasks = [
+        search_chunks(q, collection=settings.qdrant_collection_dev,
+                      top_k=_KB_DEV_TOP_K_PER_QUERY)
+        for q in queries
+    ]
+    per_query = await asyncio.gather(*tasks, return_exceptions=True)
+
+    best: dict[str, dict] = {}
+    for results in per_query:
+        if isinstance(results, Exception):
+            logger.warning("Dev-KB query failed: %s", results)
+            continue
+        for r in results:
+            meta = r.get("metadata") or {}
+            key = f"{meta.get('source_path','')}#{meta.get('section','')}"
+            if key not in best or r.get("score", 0) > best[key].get("score", 0):
+                best[key] = r
+
+    return sorted(best.values(), key=lambda c: -c.get("score", 0))[:_KB_DEV_FINAL_TOP_K]
+
+
+async def _generate_blueprint(facts: dict, features_research: str,
+                              pass2_result: dict) -> dict | None:
+    """Pass 3 — produce a structured Migration Blueprint JSON for the dev-doc.
+
+    Inputs:
+      • facts          (Pass 1 output) — what the custom system is + does
+      • features_research              — replaceability evidence (already retrieved)
+      • pass2_result   (Pass 2 output) — main doc JSON; we pull GAPS_IF_REPLACED
+                                          and the capability list from this
+
+    Returns the parsed JSON dict, or None on failure (caller handles graceful
+    degradation — system doc + Summary still ship even if blueprint fails).
+    """
+    qsr           = (pass2_result.get("QAD_STANDARD_REPLACEMENT") or {}) if isinstance(pass2_result, dict) else {}
+    gaps          = qsr.get("GAPS_IF_REPLACED") or []
+    rep_recommend = qsr.get("RECOMMENDATION") or ""
+    capabilities  = facts.get("capabilities") or []
+
+    # ── Pull dev-KB evidence ──────────────────────────────────────────────────
+    try:
+        dev_chunks = await _kb_research_qad_dev(facts, gaps, capabilities)
+    except Exception as exc:
+        logger.warning("Dev-KB research failed: %s", exc)
+        dev_chunks = []
+    dev_evidence = _format_kb_chunks(dev_chunks)
+    logger.info("Blueprint dev-KB: %d chunks, best score=%.3f",
+                len(dev_chunks),
+                dev_chunks[0].get("score", 0.0) if dev_chunks else 0.0)
+
+    # ── Build prompt ──────────────────────────────────────────────────────────
+    blueprint_system = (
+        "You are a senior QAD ERP modernisation architect. "
+        "Given a customer's custom Progress 4GL system, the replaceability analysis "
+        "(already done) and authoritative QAD Adaptive 2025 implementation evidence, "
+        "produce a DETAILED Migration Blueprint as a structured JSON document. "
+        "The blueprint must contain CONCRETE implementation details: actual TypeScript "
+        "extension code (not pseudocode), specific Business Component definitions, "
+        "Business Event subscriptions with event names and handler logic, REST API "
+        "endpoints with example payloads, step-by-step configuration actions, and "
+        "citations to the dev-KB evidence. "
+        "Return ONLY valid JSON — no markdown fences, no preamble, no extra text."
+    )
+
+    facts_summary = json.dumps(facts, indent=2, default=str)[:4000]
+    capabilities_list = "\n".join(f"  - {c}" for c in capabilities[:10]) if capabilities else "  (none extracted)"
+    gaps_list = "\n".join(f"  - {g}" for g in gaps[:8]) if gaps else "  (none — recommendation: " + rep_recommend + ")"
+
+    blueprint_prompt = f"""Build a detailed Migration Blueprint for migrating this custom QAD Progress 4GL system to standard QAD Adaptive 2025.
+
+CUSTOM SYSTEM FACTS (extracted from source code):
+{facts_summary}
+
+CUSTOM CAPABILITIES TO MIGRATE:
+{capabilities_list}
+
+GAPS NOT NATIVELY COVERED BY STANDARD QAD (must be re-implemented as extensions / events / integrations):
+{gaps_list}
+
+OVERALL REPLACEABILITY RECOMMENDATION (from Pass 2):
+{rep_recommend or "(not specified)"}
+
+QAD ADAPTIVE PLATFORM IMPLEMENTATION EVIDENCE
+(from QAD Implementation Guide, Security Admin Guide, and Developer Confluence — use these chunks to ground the migration approach):
+
+{dev_evidence}
+
+Return ONLY valid JSON with this exact structure:
+
+{{
+  "TITLE_PAGE": {{
+    "SYSTEM_NAME":      "{facts.get('system_name', 'CUSTOM')}",
+    "SYSTEM_FULL_NAME": "{facts.get('system_full_name', 'Custom Module')}",
+    "TARGET_PLATFORM":  "QAD Adaptive 2025",
+    "DOCUMENT_TYPE":    "Migration Blueprint — Implementation Plan"
+  }},
+  "EXECUTIVE_SUMMARY": {{
+    "OVERVIEW":          "5-7 sentence paragraph describing the migration: what's being migrated, the high-level approach (mostly configuration / extension-heavy / hybrid), key QAD Adaptive components used, and the expected outcome.",
+    "BUSINESS_VALUE":    "3-5 sentence paragraph: why this migration matters — TCO, supportability, cloud-readiness, removing dependency on Progress 4GL talent, ability to roll forward with QAD upgrades, etc.",
+    "ESTIMATED_EFFORT":  "Total estimate, e.g. '15-25 person-days'",
+    "KEY_DEPENDENCIES":  ["concrete dep 1", "concrete dep 2"]
+  }},
+  "MIGRATION_STRATEGY": {{
+    "INTRO_PARA": "4-6 sentence paragraph describing the overall approach: phased / big-bang, extension framework vs configuration, integration touchpoints, sequencing rationale.",
+    "PHASES": [
+      {{
+        "PHASE_NUMBER": "1",
+        "PHASE_NAME":   "Foundation Setup",
+        "DURATION":     "1-2 weeks",
+        "ACTIVITIES":   ["activity 1", "activity 2"],
+        "OUTCOME":      "what's complete at end of phase"
+      }}
+    ]
+  }},
+  "CAPABILITY_MIGRATIONS": [
+    {{
+      "CAPABILITY":          "Name (one of facts.capabilities, paraphrased for clarity if needed)",
+      "CURRENT_BEHAVIOUR":   "1-2 sentences: what the custom code does today",
+      "TARGET_APPROACH":     "Configuration | TypeScript Extension | Business Event | Hybrid",
+      "QAD_MODULE":          "Standard QAD module/feature, e.g. 'QAD Requisition Management'. Cite source_doc + breadcrumb if from KB.",
+      "MIGRATION_DETAIL":    "4-6 sentences: how this capability is migrated, what config + custom layers are involved, how the user experience changes (or stays the same).",
+      "CONFIGURATION_STEPS": [
+        {{
+          "STEP_NUMBER": "1",
+          "TITLE":       "step title",
+          "DESCRIPTION": "2-3 sentences",
+          "ACTIONS":     ["action 1", "action 2"],
+          "REFERENCE":   "Citation from dev KB if applicable, otherwise omit"
+        }}
+      ],
+      "BUSINESS_COMPONENT": {{
+        "SHOW":        false,
+        "NAME":        "BC name e.g. RequisitionApprovalTrigger",
+        "PURPOSE":     "what this BC does",
+        "PROPERTIES":  [
+          {{"NAME": "prop1", "TYPE": "string | integer | boolean | date", "REQUIRED": true, "DESCRIPTION": "what it carries"}}
+        ],
+        "VALIDATIONS": ["validation rule 1"],
+        "NOTES":       "1-2 sentences"
+      }},
+      "TYPESCRIPT_EXTENSION": {{
+        "SHOW":    false,
+        "PURPOSE": "1-2 sentences why a TS extension is needed",
+        "FILES": [
+          {{
+            "FILENAME": "approval-trigger.ts",
+            "PURPOSE":  "what this file does",
+            "CODE":     "ACTUAL TypeScript code — full file with imports, decorators, class definition, methods. Use the QAD extensibility imports cited in the dev KB. Concrete and runnable, not pseudocode. ~30-80 lines.",
+            "NOTES":    ["note 1", "note 2"]
+          }}
+        ]
+      }},
+      "BUSINESS_EVENT_SUBSCRIPTION": {{
+        "SHOW":            false,
+        "EVENT_NAME":      "official event name from KB if cited (e.g. 'RequisitionStatusChanged'); otherwise mark as TBC",
+        "TRIGGER":         "when fired",
+        "HANDLER_LOGIC":   "1-2 sentences describing what the handler does",
+        "PAYLOAD_FIELDS":  ["field1", "field2"]
+      }},
+      "API_INTEGRATION": {{
+        "SHOW":            false,
+        "ENDPOINT":        "HTTP method + path",
+        "PURPOSE":         "1-2 sentences",
+        "EXAMPLE_PAYLOAD": "JSON payload example as a string",
+        "AUTH":            "auth method e.g. OAuth 2.0"
+      }},
+      "DATA_MIGRATION_NOTES": {{
+        "SHOW":             false,
+        "TABLES_AFFECTED":  ["xxmrh_hist", "..."],
+        "MIGRATION_APPROACH": "How to migrate this data"
+      }},
+      "EFFORT_ESTIMATE": "X-Y days",
+      "DEPENDENCIES":    ["dep 1"],
+      "RISKS":           [
+        {{"RISK": "risk description", "MITIGATION": "how to mitigate"}}
+      ]
+    }}
+  ],
+  "DATA_MIGRATION": {{
+    "SHOW":       true,
+    "INTRO_PARA": "How custom-system data is migrated to standard QAD tables / structures.",
+    "TABLES_TABLE": {{
+      "headers": ["Source Table", "Target Module / Table", "Migration Approach", "Notes"],
+      "rows":    [["xxmrh_hist", "Standard QAD audit trail", "Extract via SQL → import via REST API", "..."]]
+    }}
+  }},
+  "TESTING_PLAN": {{
+    "INTRO_PARA": "How to validate the migration before go-live.",
+    "TEST_CASES": [
+      {{"SCENARIO": "End-to-end requisition approval", "STEPS": ["step 1", "step 2"], "EXPECTED": "expected outcome"}}
+    ]
+  }},
+  "GO_LIVE_CHECKLIST": [
+    "Item 1 — concrete cutover task",
+    "Item 2 — verification step"
+  ],
+  "REFERENCES": [
+    {{"label": "section title", "section": "section title", "source_doc": "confluence_QEP250 | implementation_guide_2025 | security_admin_guide_2025"}}
+  ]
+}}
+
+CRITICAL REQUIREMENTS:
+1. Generate a CAPABILITY_MIGRATIONS entry for each capability listed above. Pure-config capabilities have empty TYPESCRIPT_EXTENSION (SHOW: false) and longer CONFIGURATION_STEPS. Capabilities needing custom code have TYPESCRIPT_EXTENSION populated with real, runnable code.
+
+2. TYPESCRIPT_EXTENSION code MUST be syntactically valid TypeScript. Use ACTUAL imports cited in the dev KB (e.g. ``import {{ ... }} from '@qad/...'``). Include decorators, class structure, method bodies. NEVER write `// TODO` or pseudocode.
+
+3. BUSINESS_COMPONENT, BUSINESS_EVENT_SUBSCRIPTION, API_INTEGRATION sections MUST cite specifics from the dev KB. If the KB doesn't cover a specific event name or endpoint, set the value to "TBC — verify with QAD partner; see dev KB section X" and continue.
+
+4. Use evidence from the QAD ADAPTIVE PLATFORM IMPLEMENTATION EVIDENCE block. REFERENCES at the end MUST list the actual source_doc + section pairs you used (no fabrications).
+
+5. Effort estimates: configuration only = 1-3 days/capability; TS extension required = 5-10 days/capability; complex integration = 10-20 days/capability. Sum into EXECUTIVE_SUMMARY.ESTIMATED_EFFORT.
+
+6. NEVER invent QAD module names, event names, or API endpoints not present in the dev KB evidence above. If something isn't covered, mark explicitly "TBC — not in our KB; consult QAD partner."
+
+7. The blueprint output must be at least 6,000 characters of detailed JSON — this is a deep implementation document, not a summary."""
+
+    try:
+        raw = await asyncio.wait_for(
+            openai_chat(blueprint_system, blueprint_prompt,
+                        max_tokens=16000, model="gpt-4o", temperature=0.2),
+            timeout=_BLUEPRINT_TIMEOUT_SECS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Blueprint Pass 3 timed out (>%ds)", _BLUEPRINT_TIMEOUT_SECS)
+        return None
+    except Exception as exc:
+        logger.exception("Blueprint Pass 3 LLM call failed: %s", exc)
+        return None
+
+    try:
+        parsed = parse_json_response(raw)
+        logger.info("Blueprint parsed top-level keys: %s", list(parsed.keys()))
+        return parsed
+    except Exception as exc:
+        logger.warning("Blueprint Pass 3 returned unparseable JSON: %s", exc)
+        logger.debug("Blueprint raw (first 1000): %s", raw[:1000] if isinstance(raw, str) else "")
         return None
 
 
@@ -1019,8 +1305,49 @@ OUTPUT REQUIREMENT: The JSON must be at least 15,000 characters long. Every arra
 
     await send_frame(ws, "doc", {"url": doc_url, "title": title})
 
+    # ── PASS 3: Migration Blueprint ──────────────────────────────────────────
+    #
+    # Run after the system doc has shipped so the user sees the first download
+    # immediately; the blueprint follows ~30-90s later as a `blueprint` frame.
+    # If Pass 3 fails (timeout / parse error / KB empty) we silently skip — the
+    # main doc + Summary tab already shipped successfully.
+
+    await send_status(ws, "Generating Migration Blueprint…")
+    blueprint_data: dict | None = None
+    blueprint_url:  str  | None = None
+    try:
+        blueprint_data = await _generate_blueprint(facts, web_replacement_research, parsed)
+    except Exception:
+        logger.exception("Pass 3 blueprint generation raised; continuing without blueprint.")
+        blueprint_data = None
+
+    if blueprint_data:
+        # Default the title page to the system info from the main doc if Pass 3
+        # didn't override it.
+        bp_tp = blueprint_data.setdefault("TITLE_PAGE", {})
+        bp_tp.setdefault("SYSTEM_NAME",      tp.get("SYSTEM_NAME", module_label))
+        bp_tp.setdefault("SYSTEM_FULL_NAME", title)
+        bp_tp.setdefault("TARGET_PLATFORM",  "QAD Adaptive 2025")
+
+        try:
+            blueprint_url = generate_blueprint_document(blueprint_data, system_full=title)
+        except Exception:
+            logger.exception("Blueprint Word render failed; continuing without blueprint.")
+            blueprint_url = None
+
+    if blueprint_url:
+        await send_frame(ws, "blueprint", {
+            "url":   blueprint_url,
+            "title": f"{title} — Migration Blueprint",
+        })
+        logger.info("Blueprint shipped: %s", blueprint_url)
+    else:
+        logger.warning("Blueprint not shipped (data=%s, url=%s)",
+                       bool(blueprint_data), bool(blueprint_url))
+
     append_turn(session_id, AGENT_KEY, {
-        "q": question, "a": summary, "mode": "documentation", "doc_url": doc_url,
+        "q": question, "a": summary, "mode": "documentation",
+        "doc_url": doc_url, "blueprint_url": blueprint_url,
     })
 
 
