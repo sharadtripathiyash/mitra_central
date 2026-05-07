@@ -445,16 +445,30 @@ Return ONLY valid JSON with this exact structure (all keys required):
   "keyCapabilities": [
     "ONLY the capabilities the system ACTUALLY HAS — list as many as truly exist, no more. Typically 2-6 for thin wrappers, 6-12 for full custom modules. Each item is one complete business capability statement based on facts.capabilities. DO NOT pad with generic benefits like 'improves efficiency', 'enhances compliance', 'facilitates communication' — those are outcomes, not capabilities. If the system only does 3 things, list 3."
   ],
-  "replaceability": 65,
-  "confidence":     85,
-  "businessImpact":  "High",
-  "migrationEffort": "High",
+  "replaceability": "REPLACE_WITH_INTEGER_0_TO_100_COMPUTED_PER_SCORING_GUIDANCE_BELOW",
+  "confidence":     "REPLACE_WITH_INTEGER_0_TO_100_COMPUTED_PER_SCORING_GUIDANCE_BELOW",
+  "businessImpact":  "REPLACE_WITH_High_OR_Medium_OR_Low",
+  "migrationEffort": "REPLACE_WITH_High_OR_Medium_OR_Low",
   "sources": [
     {{"label": "Citation in 'source_doc — breadcrumb' shape from the KB EVIDENCE block (e.g. 'online_help_2025 — Purchasing > Requisition > Requisition Approvals Overview'). If the chunk also carries a URL, include it; otherwise set url to null.", "url": null}}
   ]
 }}
 
 SCORING GUIDANCE:
+
+⚠ CRITICAL — START HERE:
+The four scoring fields (replaceability / confidence / businessImpact / migrationEffort)
+contain PLACEHOLDER STRINGS in the JSON template above. You MUST replace those placeholder
+strings with computed values per the rules below. Outputting the literal placeholder
+text (e.g. "REPLACE_WITH_...") is a FAILURE — those exist only to remind you to compute.
+
+⚠ FRAME THE SCORING AT SYSTEM LEVEL, NOT FILE LEVEL:
+Step back from the specific files (a script, an email recipient, a JSON format).
+Ask "what is the OVERALL business system this customisation delivers?" — e.g.
+"a delivery-challan management system with multi-level approvals", "a custom approval
+workflow engine", "an inter-site requisition system". Score based on whether QAD Adaptive
+covers THAT SYSTEM, not on how the individual files happen to be implemented.
+
 - replaceability (integer 0-100): based on the KB EVIDENCE, what percentage of this custom system's BUSINESS OUTCOMES are achievable with standard QAD Adaptive today? Score by CAPABILITY parity, NOT IMPLEMENTATION parity:
     100 = every business outcome is natively achievable in standard QAD; the custom code is essentially a thin wrapper / format / report layer that can be retired.
     80-95 = all major outcomes covered with only minor formatting, delivery, or UI differences.
@@ -478,22 +492,36 @@ SCORING GUIDANCE:
 OUTPUT REQUIREMENTS (strict):
 - 'sources' MUST come from the KB EVIDENCE block above. Pick the 3-5 chunks most relevant to the system's headline capabilities. Use the 'source_doc — breadcrumb' label format and url: null. NEVER invent URLs and never reference web pages that don't appear in the evidence.
 - 'tags' = functional business areas, never technical layers (no 'Backend', 'Database', etc.).
-- 'replaceability' and 'confidence' MUST be JSON integers (not strings).
-- 'businessImpact' and 'migrationEffort' MUST be exactly one of "High", "Medium", "Low"."""
+- 'replaceability' and 'confidence' MUST be JSON integers (not strings) — replace the placeholder text in the template with a computed integer.
+- 'businessImpact' and 'migrationEffort' MUST be exactly one of "High", "Medium", "Low" — replace the placeholder text with one of those three strings.
+- DO NOT output the placeholder tokens ("REPLACE_WITH_...") verbatim. Compute the values from SCORING GUIDANCE."""
 
     try:
         raw = await openai_chat(summary_system, summary_prompt, max_tokens=2000, model="gpt-4o", temperature=0.2)
         parsed = parse_json_response(raw)
-        # Coerce numeric fields defensively
+        # Coerce numeric fields defensively. If the model echoed the placeholder
+        # (REPLACE_WITH_...) string, log it loudly and fall to None so the
+        # frontend can show "—" rather than a misleading number.
         for k in ("replaceability", "confidence"):
+            v = parsed.get(k)
+            if isinstance(v, str) and "REPLACE_WITH" in v.upper():
+                logger.warning("Summary returned placeholder for %s; clearing to None", k)
+                parsed[k] = None
+                continue
             try:
-                parsed[k] = max(0, min(100, int(parsed.get(k, 0))))
-            except Exception:
-                parsed[k] = 0
-        # Normalise impact/effort labels
+                parsed[k] = max(0, min(100, int(v)))
+            except (TypeError, ValueError):
+                logger.warning("Summary %s could not be coerced to int (got %r); clearing", k, v)
+                parsed[k] = None
+        # Normalise impact/effort labels — placeholder echo also clears
         for k in ("businessImpact", "migrationEffort"):
-            v = str(parsed.get(k, "")).strip().capitalize()
-            parsed[k] = v if v in ("High", "Medium", "Low") else "Medium"
+            v = str(parsed.get(k, "")).strip()
+            if "REPLACE_WITH" in v.upper():
+                logger.warning("Summary returned placeholder for %s; clearing", k)
+                parsed[k] = None
+                continue
+            v_cap = v.capitalize()
+            parsed[k] = v_cap if v_cap in ("High", "Medium", "Low") else None
         # Ensure list shapes
         if not isinstance(parsed.get("tags"), list):
             parsed["tags"] = []
