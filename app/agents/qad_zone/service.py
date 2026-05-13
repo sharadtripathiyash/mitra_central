@@ -497,7 +497,11 @@ OUTPUT REQUIREMENTS (strict):
 - DO NOT output the placeholder tokens ("REPLACE_WITH_...") verbatim. Compute the values from SCORING GUIDANCE."""
 
     try:
-        raw = await openai_chat(summary_system, summary_prompt, max_tokens=2000, model="gpt-4o", temperature=0.2)
+        raw = await openai_chat(
+            summary_system, summary_prompt,
+            max_tokens=2000, model="gpt-4o", temperature=0.2,
+            response_format={"type": "json_object"},
+        )
         parsed = parse_json_response(raw)
         # Coerce numeric fields defensively. If the model echoed the placeholder
         # (REPLACE_WITH_...) string, log it loudly and fall to None so the
@@ -799,7 +803,8 @@ CRITICAL REQUIREMENTS:
     try:
         raw = await asyncio.wait_for(
             openai_chat(blueprint_system, blueprint_prompt,
-                        max_tokens=16000, model="gpt-4o", temperature=0.2),
+                        max_tokens=16000, model="gpt-4o", temperature=0.2,
+                        response_format={"type": "json_object"}),
             timeout=_BLUEPRINT_TIMEOUT_SECS,
         )
     except asyncio.TimeoutError:
@@ -964,7 +969,14 @@ Return ONLY valid JSON with this exact structure — populate every field you ca
 Extract ONLY what you can find in the code. Omit keys with no evidence."""
 
     logger.info("PASS1 prompt length: %d chars | code length: %d chars", len(pass1_prompt), len(code))
-    raw1 = await openai_chat(pass1_system, pass1_prompt, max_tokens=8000, model="gpt-4o")
+    # JSON mode forces the model to commit to strict valid JSON — eliminates
+    # the markdown-fence / preamble / partial-JSON failures we saw on some
+    # modules in bulk-upload (and occasionally in per-feature flow too).
+    raw1 = await openai_chat(
+        pass1_system, pass1_prompt,
+        max_tokens=8000, model="gpt-4o",
+        response_format={"type": "json_object"},
+    )
     logger.info("PASS1 raw response length: %d chars", len(raw1))
 
     try:
@@ -1278,7 +1290,11 @@ OUTPUT REQUIREMENT: The JSON must be at least 15,000 characters long. Every arra
     # call is small (~3-5s) so it virtually never blocks Pass 2 (~10-20s); we just
     # wait for the slower of the two.
     pass2_task   = asyncio.create_task(
-        openai_chat(pass2_system, pass2_prompt, max_tokens=16000, model="gpt-4o")
+        openai_chat(
+            pass2_system, pass2_prompt,
+            max_tokens=16000, model="gpt-4o",
+            response_format={"type": "json_object"},
+        )
     )
     summary_task = asyncio.create_task(
         _generate_summary(raw1, web_replacement_research)

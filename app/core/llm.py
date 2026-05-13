@@ -19,6 +19,7 @@ Usage::
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any, AsyncIterator
@@ -83,23 +84,94 @@ async def openai_chat(
     temperature: float = 0.2,
     max_tokens: int = 4096,
     model: str | None = None,
+    response_format: dict | None = None,
+    timeout: float = 180.0,
+    max_retries: int = 5,
 ) -> str:
-    """Quality LLM call via OpenAI for SQL gen, RAG answers, doc gen."""
-    payload = {
+    """Quality LLM call via OpenAI for SQL gen, RAG answers, doc gen.
+
+    Parameters
+    ----------
+    response_format
+        Optional pass-through to OpenAI's structured-output flag. The most
+        useful value is ``{"type": "json_object"}`` which forces strict JSON
+        output (the model can no longer hedge with prose / markdown fences /
+        partial JSON). All bulk-tagging callers should set this.
+    timeout
+        Per-attempt HTTP timeout. Defaults to 180s — long enough for the
+        heaviest Pass 3 / Pass 4.5 / Pass 2 documentation calls.
+    max_retries
+        Total attempts (not just retries) on 429 rate-limit and 5xx server
+        errors. 429 honours the ``Retry-After`` header; 5xx uses exponential
+        backoff. 4xx (auth, bad request) raise immediately — no point retrying.
+
+    Backward-compatible with the prior signature: existing callers that don't
+    pass ``response_format`` / ``timeout`` / ``max_retries`` behave identically
+    to before, just with retry-on-failure added (strictly more robust).
+    """
+    payload: dict[str, Any] = {
         "model": model or settings.openai_model,
         "messages": _build_messages(system, user_msg, history),
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if response_format is not None:
+        payload["response_format"] = response_format
+
     headers = {
         "Authorization": f"Bearer {settings.openai_api_key}",
         "Content-Type": "application/json",
     }
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(_OPENAI_URL, json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+
+    last_err: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(_OPENAI_URL, json=payload, headers=headers)
+
+            # ── 429: honour Retry-After, exponential backoff fallback ────────
+            if resp.status_code == 429:
+                ra = resp.headers.get("retry-after") or resp.headers.get("Retry-After")
+                if ra and ra.replace(".", "").isdigit():
+                    wait = float(ra) + 1.0
+                else:
+                    wait = 20.0 * (attempt + 1)
+                logger.warning(
+                    "OpenAI 429 rate-limited (attempt %d/%d); waiting %.0fs",
+                    attempt + 1, max_retries, wait,
+                )
+                await asyncio.sleep(min(wait, 120.0))
+                last_err = RuntimeError(f"429 (attempt {attempt + 1})")
+                continue
+
+            # ── 5xx: backoff and retry ───────────────────────────────────────
+            if 500 <= resp.status_code < 600:
+                wait = float(2 ** attempt)
+                logger.warning(
+                    "OpenAI %d (attempt %d/%d); retrying in %.0fs",
+                    resp.status_code, attempt + 1, max_retries, wait,
+                )
+                last_err = RuntimeError(f"{resp.status_code} (attempt {attempt + 1})")
+                await asyncio.sleep(wait)
+                continue
+
+            # ── 4xx (other) or 2xx: process normally ─────────────────────────
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+
+        except (httpx.TimeoutException, httpx.RequestError) as exc:
+            # Transport-level error (DNS, connection reset, timeout). Retry.
+            last_err = exc
+            wait = float(2 ** attempt)
+            logger.warning(
+                "OpenAI transport error: %s (attempt %d/%d); retrying in %.0fs",
+                type(exc).__name__, attempt + 1, max_retries, wait,
+            )
+            await asyncio.sleep(wait)
+            continue
+
+    raise RuntimeError(f"OpenAI call failed after {max_retries} attempts: {last_err}")
 
 
 async def openai_stream(

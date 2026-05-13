@@ -44,15 +44,16 @@ async def openai_call(
 ) -> dict:
     """Compat shim — delegate to app.core.llm.openai_chat + parse_json_response.
 
-    The original doc-gener-bulk version took an ``httpx.AsyncClient`` as the
-    first positional arg and used JSON mode via response_format. The central
-    ``openai_chat`` doesn't expose response_format, but the per-pass prompts
-    are all very explicit about returning ONLY valid JSON and we run them
-    with temperature=0 (default in ``openai_chat`` is 0.2 — see override
-    below). ``parse_json_response`` then tolerantly extracts the JSON object.
-
-    NOTE: ``openai_chat`` defaults to temperature=0.2; for tagging we want
-    deterministic output so we pass temperature=0 explicitly.
+    Matches the standalone doc-gener-bulk LLM contract exactly:
+      • temperature=0        (deterministic tagging)
+      • JSON mode ON         (response_format={"type":"json_object"}) — forces
+                              the model to commit to strict JSON. Critical
+                              for Pass 4.5 (merges) and Pass A (glossary)
+                              where the model otherwise hedges with prose.
+      • 429 + 5xx retry      (inherited from openai_chat — 5 attempts, honours
+                              Retry-After)
+      • 180s timeout         (inherited — gives big Pass 3 / Pass 4.5 calls
+                              enough room)
     """
     raw = await openai_chat(
         system,
@@ -60,6 +61,7 @@ async def openai_call(
         max_tokens=max_tokens,
         model=model,
         temperature=0.0,
+        response_format={"type": "json_object"},
     )
     try:
         return parse_json_response(raw)
