@@ -1439,7 +1439,11 @@ async def _handle_modernisation(
 # ── Main WebSocket Handler ────────────────────────────────────────────────────
 
 async def handle_qadzone_ws(ws: WebSocket, session_id: str, user: dict) -> None:
-    """Main WebSocket handler for QAD-Zone (3 modes)."""
+    """Main WebSocket handler for QAD-Zone (4 modes)."""
+    # Lazy import to avoid a circular at module load — bulk_module_pipeline
+    # imports from this very module (service.py).
+    from app.agents.qad_zone.bulk_service import handle_bulk_upload
+
     try:
         while True:
             data = await ws.receive_json()
@@ -1450,6 +1454,13 @@ async def handle_qadzone_ws(ws: WebSocket, session_id: str, user: dict) -> None:
                     current_version = (data.get("current_version") or "").strip()
                     target_version = (data.get("target_version") or "").strip()
                     await _handle_modernisation(ws, session_id, current_version, target_version)
+
+                elif mode == "bulk-upload":
+                    # New: accept a single .zip of the customer's customisation,
+                    # run the 8-pass tagging pipeline, then generate one
+                    # documentation + migration blueprint per detected module.
+                    uploaded_files = data.get("uploaded_files") or []
+                    await handle_bulk_upload(ws, session_id, uploaded_files)
 
                 elif mode == "documentation":
                     question = (data.get("question") or "").strip()

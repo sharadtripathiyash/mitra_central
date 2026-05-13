@@ -18,6 +18,10 @@ dump.rdb
 node_modules/
 app/static/js/dist/
 
+# Per-job bulk-upload work folders (extracted zips, tags.db, intermediate
+# docs). These accumulate on the deployed server; nothing to track in git.
+app/static/bulk-jobs/
+
 # QAD knowledge base — content is too large for git, structure is preserved via .gitkeep
 data/qad_kb/features/*
 data/qad_kb/dev/*

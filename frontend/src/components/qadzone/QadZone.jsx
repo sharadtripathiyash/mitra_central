@@ -17,6 +17,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { ModeBar } from "./ModeBar";
 import { FileUploadBar } from "./FileUploadBar";
 import { ModernisationPanel } from "./ModernisationPanel";
+import { LiveBulkPipelineCard } from "./LiveBulkPipelineCard";
 import { DocCard } from "../shared/DocCard";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { renderMarkdown, escapeHtml, buildWsUrl } from "../../utils/helpers";
@@ -836,6 +837,12 @@ export function QadZone() {
   const bottomRef        = useRef(null);
   const demoStartingRef  = useRef(false); // prevents useEffect from cancelling demo on clearFiles()
 
+  // ── Bulk-upload state (mode === "bulk-upload") ──────────────────────────
+  // Set when the user picks "Bulk Upload" from the FileUploadBar modal.
+  // Drives the LiveBulkPipelineCard rendered inline.
+  const [bulkState, setBulkState] = useState(null);
+  const bulkCloseRef = useRef(null);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, liveHtml, loading]);
 
   // Reset demo state only when user manually removes all files (not when sendChat clears them)
@@ -998,6 +1005,132 @@ export function QadZone() {
     return () => document.removeEventListener("click", handler);
   }, [sendChat]);
 
+  // ── Bulk Upload (mode === "bulk-upload") ────────────────────────────────
+  //
+  // Called by FileUploadBar when the user picks "Bulk Upload" in the modal
+  // and selects a .zip. Reads the file as base64 (same pattern as the rest
+  // of the agent), opens a WS to the existing /ws endpoint with
+  // mode: "bulk-upload", and routes the new frame types into bulkState.
+  //
+  // Frames consumed:
+  //   bulk_progress     → push to phaseLog, update currentPhase. If phase
+  //                       === "tagging_complete" the payload also includes
+  //                       the planned modules list — capture for the row UI.
+  //   bulk_module_ready → append to modulesReady (one row per module).
+  //   bulk_done         → mark done, set zipUrl + finalSummary.
+  const sendBulkUpload = useCallback(async (zipFile) => {
+    if (!zipFile) return;
+    if (bulkState?.active) return;          // one bulk job at a time per session
+
+    // Base64-encode the ZIP so we can hand it to the existing WS payload
+    // (same shape as the doc-mode upload — {name, data}).
+    const arrayBuf = await zipFile.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(arrayBuf);
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    const b64 = btoa(binary);
+
+    // Echo a user-side message so there's a clear timeline anchor.
+    setMessages((prev) => [...prev, {
+      role: "user",
+      text: `📦 Bulk Upload — ${zipFile.name} (${(zipFile.size / 1024 / 1024).toFixed(1)} MB)`,
+    }]);
+
+    // Initialise the live state.
+    setBulkState({
+      active:        true,
+      currentPhase:  "init",
+      phaseLog:      [],
+      taggingMeta:   null,
+      modulesReady:  [],
+      done:          false,
+      zipUrl:        null,
+      finalSummary:  null,
+      error:         null,
+    });
+
+    const closeWs = openWs(
+      {
+        mode: "bulk-upload",
+        uploaded_files: [{ name: zipFile.name, data: b64 }],
+      },
+      {
+        onToken:  () => {},   // bulk pipeline does not stream tokens
+        onStatus: (msg) => {
+          // Treat plain status frames the same as bulk_progress entries
+          // (defensive — backend mostly emits bulk_progress frames directly)
+          setBulkState((s) => s && ({
+            ...s,
+            phaseLog: [...s.phaseLog, { phase: "status", message: msg, ts: Date.now() }],
+          }));
+        },
+        onFrame: (type, data) => {
+          if (type === "bulk_progress") {
+            setBulkState((s) => s && ({
+              ...s,
+              currentPhase: data.phase || s.currentPhase,
+              phaseLog: [...s.phaseLog, {
+                phase:   data.phase,
+                message: data.message,
+                ts:      Date.now(),
+              }],
+              // Capture the planned-module list once tagging finishes
+              taggingMeta: data.phase === "tagging_complete"
+                ? {
+                    total_modules: data.modules?.length || 0,
+                    total_files:   data.modules?.reduce((a, m) => a + (m.file_count || 0), 0) || 0,
+                    modules:       data.modules || [],
+                  }
+                : s.taggingMeta,
+            }));
+          } else if (type === "bulk_module_ready") {
+            setBulkState((s) => s && ({
+              ...s,
+              // Replace any placeholder for this module_tag, else append
+              modulesReady: (() => {
+                const existing = s.modulesReady.findIndex((m) => m.module_tag === data.module_tag);
+                if (existing >= 0) {
+                  const copy = [...s.modulesReady];
+                  copy[existing] = data;
+                  return copy;
+                }
+                return [...s.modulesReady, data];
+              })(),
+            }));
+          } else if (type === "bulk_done") {
+            setBulkState((s) => s && ({
+              ...s,
+              done:         true,
+              zipUrl:       data.zip_url,
+              finalSummary: {
+                total_files:   data.total_files,
+                total_modules: data.total_modules,
+              },
+              currentPhase: "done",
+              // Make sure any modules that haven't streamed a ready frame
+              // get the canonical entry from the final payload.
+              modulesReady: data.modules || s.modulesReady,
+            }));
+          }
+        },
+        onDone: () => {
+          // The WS closed — if the bulk_done frame already arrived we keep
+          // the state as-is. If not, mark inactive so the spinner stops.
+          setBulkState((s) => s && ({ ...s, active: false }));
+          bulkCloseRef.current = null;
+        },
+        onError: (msg) => {
+          setBulkState((s) => s && ({ ...s, active: false, error: msg }));
+          bulkCloseRef.current = null;
+        },
+      },
+    );
+    bulkCloseRef.current = closeWs;
+  }, [bulkState]);
+
   function sendModernisation() {
     const current = (modernForm.currentCustom || modernForm.currentVersion || "").trim();
     const target  = (modernForm.targetCustom  || modernForm.targetVersion  || "").trim();
@@ -1025,7 +1158,7 @@ export function QadZone() {
     closeWsRef.current = closeWs;
   }
 
-  const showEmpty = messages.length === 0 && mode !== "modernisation" && !demoMode && !demoLoading;
+  const showEmpty = messages.length === 0 && mode !== "modernisation" && !demoMode && !demoLoading && !bulkState;
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -1062,7 +1195,7 @@ export function QadZone() {
               currentHtml={modernLiveHtml} result={modernResult} />
           )}
 
-          {mode !== "modernisation" && !demoMode && messages.length > 0 && (
+          {mode !== "modernisation" && !demoMode && (messages.length > 0 || bulkState) && (
             <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
               {messages.map((m, i) => (
                 <div key={i}>
@@ -1090,6 +1223,9 @@ export function QadZone() {
                   )}
                 </div>
               ))}
+              {bulkState && (
+                <LiveBulkPipelineCard state={bulkState} />
+              )}
               {(streaming || (loading && statusText)) && (
                 <div className="rounded-2xl p-5"
                   style={{ background: "rgba(10,20,42,0.85)", border: "1px solid rgba(0,229,200,0.14)" }}>
@@ -1135,7 +1271,9 @@ export function QadZone() {
             )}
             <FileUploadBar mode={mode} input={input} setInput={setInput}
               uploadedFiles={uploadedFiles} onAddFiles={addFiles} onRemoveFile={removeFile}
-              onSend={() => sendChat()} loading={loading} />
+              onSend={() => sendChat()}
+              onBulkPick={sendBulkUpload}
+              loading={loading || bulkState?.active} />
           </>
         )}
       </div>
