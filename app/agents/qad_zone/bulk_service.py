@@ -217,9 +217,12 @@ def _move_doc_into_module_folder(
     shutil.move(str(src_path), str(dst_path))
 
     # Compute the public URL from the path relative to "app/" (FastAPI mounts
-    # app/static at /static).
-    rel = dst_path.relative_to(Path("app")).as_posix()  # e.g. "static/bulk-jobs/.../foo.docx"
-    return "/" + rel
+    # app/static at /static). We resolve BOTH sides to absolute paths because
+    # `dst_path` is already absolute (came from `(BULK_JOBS_ROOT/job_id).resolve()`
+    # in `handle_bulk_upload`) and `Path("app")` is relative — Path.relative_to
+    # requires the same anchor on both sides.
+    rel = dst_path.resolve().relative_to(Path("app").resolve()).as_posix()
+    return "/" + rel  # e.g. "/static/bulk-jobs/<job>/modules/<TAG>/<TAG> - documentation.docx"
 
 
 def _build_result_zip(job_dir: Path, job_id: str) -> Path:
@@ -388,13 +391,32 @@ async def handle_bulk_upload(
             folder_label = _sanitise_folder_name(label, max_len=120)
             module_folder = modules_dir / folder_label
 
-            # Move the rendered docs into the per-module folder + rename
-            new_doc_url = _move_doc_into_module_folder(
-                result["doc_url"], module_folder, "documentation", label
-            )
-            new_blueprint_url = _move_doc_into_module_folder(
-                result["blueprint_url"], module_folder, "migration_blueprint", label
-            )
+            # Move the rendered docs into the per-module folder + rename.
+            # IMPORTANT: a failure here (e.g. unexpected URL shape, missing source
+            # file, file-system permission issue) must NOT abort the whole job —
+            # we capture it in this module's errors list and keep the URL as None
+            # so the row shows up in the UI with a clear ⚠ icon, while the rest
+            # of the modules continue to process.
+            new_doc_url: str | None = None
+            new_blueprint_url: str | None = None
+            try:
+                new_doc_url = _move_doc_into_module_folder(
+                    result["doc_url"], module_folder, "documentation", label
+                )
+            except Exception as exc:
+                logger.exception("Module %s: move (doc) failed", module_tag)
+                result["errors"] = list(result.get("errors") or []) + [
+                    f"move (doc) failed: {exc}"
+                ]
+            try:
+                new_blueprint_url = _move_doc_into_module_folder(
+                    result["blueprint_url"], module_folder, "migration_blueprint", label
+                )
+            except Exception as exc:
+                logger.exception("Module %s: move (blueprint) failed", module_tag)
+                result["errors"] = list(result.get("errors") or []) + [
+                    f"move (blueprint) failed: {exc}"
+                ]
 
             # Drop a small metadata.json next to the docs
             metadata = {
@@ -430,10 +452,20 @@ async def handle_bulk_upload(
 
             await send_frame(ws, "bulk_module_ready", entry)
 
-    await asyncio.gather(
+    # `return_exceptions=True` — defence in depth. The per-module work is now
+    # also internally wrapped, but if a task does throw unexpectedly we'd rather
+    # collect the failure and continue than abort the whole batch and waste
+    # everything already done.
+    task_results = await asyncio.gather(
         *[_run_one(i, m) for i, m in enumerate(modules)],
-        return_exceptions=False,
+        return_exceptions=True,
     )
+    for i, r in enumerate(task_results):
+        if isinstance(r, Exception):
+            logger.exception(
+                "Module %s: per-module task crashed unexpectedly: %s",
+                modules[i]["module_tag"], r,
+            )
 
     # ── Write the cross-module summary JSON ─────────────────────────────────
     summary = {
@@ -458,7 +490,9 @@ async def handle_bulk_upload(
     })
     try:
         zip_path = _build_result_zip(job_dir, job_id)
-        zip_url = "/" + zip_path.relative_to(Path("app")).as_posix()
+        # Resolve both sides so the relative_to works regardless of CWD —
+        # same fix as in _move_doc_into_module_folder above.
+        zip_url = "/" + zip_path.resolve().relative_to(Path("app").resolve()).as_posix()
     except Exception as exc:
         logger.exception("Job %s: ZIP packaging failed", job_id)
         await send_error(ws, f"ZIP packaging failed: {exc}")

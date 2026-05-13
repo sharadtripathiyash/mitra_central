@@ -97,6 +97,7 @@ export function LiveBulkPipelineCard({ state }) {
           plannedModules={state.taggingMeta?.modules || []}
           readyModules={state.modulesReady}
           done={state.done}
+          active={state.active}
         />
       )}
 
@@ -109,6 +110,10 @@ export function LiveBulkPipelineCard({ state }) {
 
 
 function Header({ state, currentLabel }) {
+  // `active` is the live WS heartbeat. If the WS closed early (server shutdown
+  // / network drop / fatal error), `active` flips to false and `done` stays
+  // false — we still want the spinner to STOP and replace with a status icon.
+  const showSpinner = state.active && !state.done && !state.error;
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -118,15 +123,20 @@ function Header({ state, currentLabel }) {
             Bulk Customisation Documentation
           </div>
           <div className="text-[11px]" style={{ color: "rgba(140,180,230,0.6)" }}>
-            {state.done ? "Pipeline complete" : currentLabel}
+            {state.done ? "Pipeline complete"
+              : !state.active ? "Pipeline stopped"
+              : currentLabel}
           </div>
         </div>
       </div>
-      {!state.done && !state.error && (
+      {showSpinner && (
         <Loader2 size={16} className="animate-spin" style={{ color: "#00e5c8" }} />
       )}
       {state.done && (
         <CheckCircle2 size={18} style={{ color: "#22c55e" }} />
+      )}
+      {!state.active && !state.done && state.error && (
+        <AlertTriangle size={16} style={{ color: "#fca5a5" }} />
       )}
     </div>
   );
@@ -205,7 +215,7 @@ function TaggingSummary({ meta }) {
 }
 
 
-function ModuleList({ plannedModules, readyModules, done }) {
+function ModuleList({ plannedModules, readyModules, done, active }) {
   const readyMap = new Map(readyModules.map((m) => [m.module_tag, m]));
 
   // Build the display list: every planned module gets a row; rows fill in as
@@ -218,7 +228,9 @@ function ModuleList({ plannedModules, readyModules, done }) {
         file_count:   p.file_count,
         doc_url:      null,
         blueprint_url: null,
-        errors:       [],
+        // If the job was interrupted before this module finished, mark it
+        // explicitly so the row shows ⚠ instead of an endless spinner.
+        errors:       active ? [] : ["Interrupted before doc generation completed"],
       })
     : readyModules;
 
@@ -230,12 +242,12 @@ function ModuleList({ plannedModules, readyModules, done }) {
         style={{ color: "rgba(140,180,230,0.55)" }}>
         <span>Module documentation</span>
         <span style={{ color: "rgba(0,229,200,0.55)" }}>
-          {readyModules.length} / {rows.length}{done ? " — done" : ""}
+          {readyModules.length} / {rows.length}{done ? " — done" : (!active ? " — stopped" : "")}
         </span>
       </div>
       <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
         {rows.map((m) => (
-          <ModuleRow key={m.module_tag} m={m} />
+          <ModuleRow key={m.module_tag} m={m} active={active} />
         ))}
       </div>
     </div>
@@ -243,7 +255,7 @@ function ModuleList({ plannedModules, readyModules, done }) {
 }
 
 
-function ModuleRow({ m }) {
+function ModuleRow({ m, active }) {
   const ready = Boolean(m.doc_url || m.blueprint_url);
   const hasErrors = Array.isArray(m.errors) && m.errors.length > 0;
 
@@ -283,7 +295,9 @@ function ModuleRow({ m }) {
       <div className="flex items-center gap-1.5 shrink-0">
         <DocLink url={m.doc_url}        label="Doc"        />
         <DocLink url={m.blueprint_url}  label="Blueprint"  />
-        {!ready && !hasErrors && (
+        {/* Spinner only while the job is still LIVE — otherwise an interrupted
+            row hangs a spinner forever, which is what made the UI feel stuck. */}
+        {!ready && !hasErrors && active && (
           <Loader2 size={11} className="animate-spin" style={{ color: "rgba(0,229,200,0.5)" }} />
         )}
       </div>

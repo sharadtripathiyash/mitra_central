@@ -1117,9 +1117,23 @@ export function QadZone() {
           }
         },
         onDone: () => {
-          // The WS closed — if the bulk_done frame already arrived we keep
-          // the state as-is. If not, mark inactive so the spinner stops.
-          setBulkState((s) => s && ({ ...s, active: false }));
+          // The WS closed. If `bulk_done` already arrived (s.done === true)
+          // we keep the state as-is. Otherwise the server disconnected
+          // before sending the final frame (e.g. uvicorn restart, network
+          // drop, browser timeout) — mark the job inactive AND surface a
+          // friendly error so the spinner stops and the user knows why.
+          setBulkState((s) => {
+            if (!s) return s;
+            if (s.done) return { ...s, active: false };
+            return {
+              ...s,
+              active: false,
+              error: s.error
+                || "Connection to the server was lost before the pipeline finished. "
+                 + "Successfully generated modules are listed below; the rest were "
+                 + "interrupted. Restart the server and re-run to continue.",
+            };
+          });
           bulkCloseRef.current = null;
         },
         onError: (msg) => {
