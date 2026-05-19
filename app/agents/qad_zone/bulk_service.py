@@ -89,8 +89,19 @@ _MODULE_DOC_CONCURRENCY = 2
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 
-def _sanitise_folder_name(raw: str, *, max_len: int = 80) -> str:
-    """Make ``raw`` safe for use as a folder name on Windows + POSIX."""
+def _sanitise_folder_name(raw: str, *, max_len: int = 60) -> str:
+    """Make ``raw`` safe for use as a folder name on Windows + POSIX.
+
+    Default ``max_len=60`` chosen so the full on-disk path stays under
+    Windows' ~260-char MAX_PATH limit even with deeply-nested job folders.
+    A typical bulk job's full path looks like::
+
+        D:\\...\\app\\static\\bulk-jobs\\<job_id>\\modules\\<folder>\\<file>.docx
+        ~95 chars                                          ~60 chars  ~70 chars
+
+    Total ~225 chars — safely under 260. Names longer than 60 chars are
+    truncated; the full description still lives in the module's metadata.json.
+    """
     if not raw:
         return "module"
     # Strip / replace illegal characters
@@ -203,7 +214,9 @@ def _move_doc_into_module_folder(
         return abs_url
 
     module_folder.mkdir(parents=True, exist_ok=True)
-    safe_label = _sanitise_folder_name(pretty_label, max_len=120)
+    # Match the folder-name truncation so file paths stay under Windows'
+    # 260-char limit. Folder + file each ≤ 60 chars after sanitisation.
+    safe_label = _sanitise_folder_name(pretty_label, max_len=60)
     new_name = f"{safe_label} - {suffix}.docx"
     dst_path = module_folder / new_name
 
@@ -388,7 +401,9 @@ async def handle_bulk_upload(
 
             # Pick the folder label: "<TAG> - <Meaning>" (sanitised)
             label = f"{module_tag} - {module_desc}" if module_desc else module_tag
-            folder_label = _sanitise_folder_name(label, max_len=120)
+            # 60-char cap keeps the full on-disk path safely under Windows'
+            # 260-char MAX_PATH limit. Full description survives in metadata.json.
+            folder_label = _sanitise_folder_name(label, max_len=60)
             module_folder = modules_dir / folder_label
 
             # Move the rendered docs into the per-module folder + rename.

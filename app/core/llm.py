@@ -331,6 +331,21 @@ async def openai_embed(text: str) -> list[float]:
 
 # ── Anthropic (Claude) — for heavy doc-gen + reasoning passes ──────────────
 
+# How many output-token-budget tokens to reserve for adaptive thinking at
+# each effort level. The Anthropic Messages API treats ``max_tokens`` as a
+# TOTAL cap covering both internal thinking and visible output. Without
+# headroom, the model burns the budget thinking and the output gets
+# truncated mid-string. These reserves are conservative but safe — at the
+# top-end "max" effort the model can think for tens of thousands of tokens
+# on a hard problem before producing anything.
+_EFFORT_THINKING_RESERVE: dict[str, int] = {
+    "low":     2_000,
+    "medium":  4_000,
+    "high":    8_000,
+    "xhigh":  20_000,
+    "max":    48_000,
+}
+
 def _build_anthropic_messages(
     user_msg: str,
     history: list[dict] | None = None,
@@ -427,6 +442,18 @@ async def anthropic_chat(
         # Adaptive thinking (Opus 4.7+) — model decides how much to think
         # based on the configured effort level. The old explicit
         # ``budget_tokens`` parameter was removed in this generation.
+        #
+        # CRITICAL: in the adaptive-thinking API, `max_tokens` caps the
+        # COMBINED total of thinking + output. If the caller asks for
+        # max_tokens=8000 and the model spends ~12K on thinking, the output
+        # gets truncated mid-stream (we saw this — JSON cut off at ~17K
+        # chars on the first real run).
+        #
+        # We reserve additional tokens for thinking based on the effort
+        # level, so the caller's max_tokens represents EXPECTED OUTPUT
+        # size and the API call gets enough headroom for both.
+        thinking_reserve = _EFFORT_THINKING_RESERVE.get(effort, 8_000)
+        payload["max_tokens"] = max_tokens + thinking_reserve
         payload["thinking"] = {"type": "adaptive"}
         payload["output_config"] = {"effort": effort}
         # Anthropic still requires temperature=1.0 when thinking is enabled.
@@ -436,6 +463,11 @@ async def anthropic_chat(
                 "anthropic_chat: temperature overridden to 1.0 because "
                 "adaptive thinking is enabled (was %s)", temperature,
             )
+        logger.debug(
+            "anthropic_chat: effort=%s, caller max_tokens=%d, "
+            "API max_tokens=%d (with %d reserve for thinking)",
+            effort, max_tokens, payload["max_tokens"], thinking_reserve,
+        )
     else:
         payload["temperature"] = temperature
 
