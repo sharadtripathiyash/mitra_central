@@ -54,9 +54,12 @@ MODEL_PASS_A = "openai:gpt-5.4-mini"
 
 # Pass 1a — Propose the module taxonomy (single LLM call)
 # Critical: this decides the 15-25 module structure for the whole codebase.
-# Adaptive thinking at "high" effort helps the model reason through merges
-# before committing.
-MODEL_PASS_1A = "anthropic:claude-opus-4-7:effort=high"
+#
+# Anthropic Opus 4.7 with adaptive thinking is the higher-quality pick here,
+# but it's commented out until Anthropic credit is topped up. To restore:
+# comment the openai line and un-comment the anthropic line.
+# MODEL_PASS_1A = "anthropic:claude-opus-4-7:effort=high"
+MODEL_PASS_1A = "openai:gpt-5.5"
 
 # Pass 1b — Assign 250 files to the locked taxonomy (single LLM call)
 # Large structured-JSON output. GPT-5.5 has 400K context + strict JSON mode
@@ -69,10 +72,15 @@ MODEL_PASS_1B = "openai:gpt-5.5"
 MODEL_PASS_2_TAGGING = "openai:gpt-5.4-mini"
 
 # Pass 3 — Global review (single LLM call seeing all 250 tagged files)
-# Pattern recognition across the whole dataset. Adaptive thinking at "high"
-# effort lets Opus actually think about cross-module patterns instead of
-# pattern-matching superficially.
-MODEL_PASS_3 = "anthropic:claude-opus-4-7:effort=high"
+# Pattern recognition across the whole dataset.
+#
+# Anthropic Opus 4.7 with adaptive thinking is the higher-quality pick here
+# (it actually reasons about cross-module patterns instead of pattern-
+# matching superficially), but it's commented out until Anthropic credit
+# is topped up. To restore: comment the openai line and un-comment
+# the anthropic line.
+# MODEL_PASS_3 = "anthropic:claude-opus-4-7:effort=high"
+MODEL_PASS_3 = "openai:gpt-5.5"
 
 # Pass 4 — Per-module coherence verification (~25 parallel calls)
 # Read 8 file samples per module, flag outliers. GPT-5.5 is fast + the
@@ -80,9 +88,15 @@ MODEL_PASS_3 = "anthropic:claude-opus-4-7:effort=high"
 MODEL_PASS_4 = "openai:gpt-5.5"
 
 # Pass 4.5 — Final merge sweep (single LLM call — most important for module count)
-# THE decisive call for over-fragmentation. Adaptive thinking at "high" effort
-# ensures the model commits to merges instead of hedging.
-MODEL_PASS_4_5 = "anthropic:claude-opus-4-7:effort=high"
+# THE decisive call for over-fragmentation.
+#
+# Anthropic Opus 4.7 with adaptive thinking commits to merges more
+# decisively than GPT-5.5 (we saw this on the last test run — Opus
+# proposed 5 well-reasoned merges), but it's commented out until
+# Anthropic credit is topped up. To restore: comment the openai line
+# and un-comment the anthropic line.
+# MODEL_PASS_4_5 = "anthropic:claude-opus-4-7:effort=high"
+MODEL_PASS_4_5 = "openai:gpt-5.5"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -92,15 +106,27 @@ MODEL_PASS_4_5 = "anthropic:claude-opus-4-7:effort=high"
 
 # Pass 1 — Extract structured facts from concatenated module code
 # Deep code reading → 25-field JSON. Wrong facts here ripple through every
-# downstream pass. Opus + adaptive thinking at "xhigh" — Anthropic's
-# recommended effort for "legacy code migration" and "large codebase
-# reviews", which is exactly what we're doing.
-MODEL_DOC_FACTS = "anthropic:claude-opus-4-7:effort=xhigh"
+# downstream pass.
+#
+# Anthropic Opus 4.7 with adaptive thinking at "xhigh" effort is the
+# higher-quality pick here (Anthropic specifically recommends "xhigh" for
+# "legacy code migration" and "large codebase reviews" — exactly our case)
+# but it's commented out until Anthropic credit is topped up. To restore:
+# comment the openai line and un-comment the anthropic line.
+# MODEL_DOC_FACTS = "anthropic:claude-opus-4-7:effort=xhigh"
+MODEL_DOC_FACTS = "openai:gpt-5.5"
 
 # Pass 2 — Generate the System Documentation JSON (the actual doc text)
-# Long-form structured technical writing — Opus's strongest category.
-# "xhigh" effort gives the model room to plan section structure before writing.
-MODEL_DOC_GENERATE = "anthropic:claude-opus-4-7:effort=xhigh"
+# Long-form structured technical writing.
+#
+# Anthropic Opus 4.7 with adaptive thinking at "xhigh" effort is the
+# higher-quality pick here — long-form technical documentation is Opus's
+# strongest category per the benchmarks (search results showed it leads
+# on "research summaries, technical explainers"). Commented out until
+# Anthropic credit is topped up. To restore: comment the openai line and
+# un-comment the anthropic line.
+# MODEL_DOC_GENERATE = "anthropic:claude-opus-4-7:effort=xhigh"
+MODEL_DOC_GENERATE = "openai:gpt-5.5"
 
 # Pass 3 — Migration Blueprint with TypeScript code, configuration steps,
 # API integrations. The TypeScript code part is the biggest single chunk
