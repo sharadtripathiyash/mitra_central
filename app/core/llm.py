@@ -115,7 +115,12 @@ async def openai_chat(
         "model": model or settings.openai_model,
         "messages": _build_messages(system, user_msg, history),
         "temperature": temperature,
-        "max_tokens": max_tokens,
+        # GPT-5 family (gpt-5, gpt-5.x, gpt-5.x-mini, o-series) deprecated
+        # `max_tokens` — they require `max_completion_tokens`. The newer name
+        # is accepted by every current OpenAI chat model, so we use it
+        # universally. (`max_tokens` still works on Groq, which is why
+        # groq_chat doesn't share this code path.)
+        "max_completion_tokens": max_tokens,
     }
     if response_format is not None:
         payload["response_format"] = response_format
@@ -158,7 +163,17 @@ async def openai_chat(
                 continue
 
             # ── 4xx (other) or 2xx: process normally ─────────────────────────
-            resp.raise_for_status()
+            # On 4xx, surface the response body so the caller sees the actual
+            # OpenAI error message (e.g. "unrecognized argument: max_tokens"),
+            # not just "400 Bad Request".
+            if 400 <= resp.status_code < 500:
+                body = resp.text[:500] if resp.text else "(empty body)"
+                raise httpx.HTTPStatusError(
+                    f"OpenAI {resp.status_code} for model={payload['model']!r} — "
+                    f"body: {body}",
+                    request=resp.request,
+                    response=resp,
+                )
             data = resp.json()
             return data["choices"][0]["message"]["content"]
 
@@ -190,7 +205,9 @@ async def openai_stream(
         "model": model or settings.openai_model,
         "messages": _build_messages(system, user_msg, history),
         "temperature": temperature,
-        "max_tokens": max_tokens,
+        # See openai_chat() for rationale: GPT-5 family requires
+        # max_completion_tokens (max_tokens is deprecated for those models).
+        "max_completion_tokens": max_tokens,
         "stream": True,
     }
     headers = {
@@ -408,7 +425,18 @@ async def anthropic_chat(
                 await asyncio.sleep(wait)
                 continue
 
-            resp.raise_for_status()
+            # ── 4xx (other) or 2xx: process normally ─────────────────────────
+            # On 4xx, surface the response body so the caller sees the actual
+            # Anthropic error (e.g. wrong model name, parameter mismatch),
+            # not just "400 Bad Request".
+            if 400 <= resp.status_code < 500:
+                body = resp.text[:500] if resp.text else "(empty body)"
+                raise httpx.HTTPStatusError(
+                    f"Anthropic {resp.status_code} for model={payload['model']!r} — "
+                    f"body: {body}",
+                    request=resp.request,
+                    response=resp,
+                )
             data = resp.json()
 
             # ── Extract the text content; skip thinking blocks ─────────────
