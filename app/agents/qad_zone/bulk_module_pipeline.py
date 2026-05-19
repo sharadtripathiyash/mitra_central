@@ -51,12 +51,14 @@ from app.agents.qad_zone.service import (
 logger = logging.getLogger(__name__)
 
 
-# Cap the concatenated code we feed to Pass 1. Modules with very large file
-# lists get truncated — most QAD modules are well under this limit, and
-# Pass 1 is about extracting facts (header comments, table names, business
-# logic). Per-file deep dive happens in the per-feature flow when the user
-# uploads a smaller slice.
-_MAX_MODULE_CODE_CHARS = 180_000
+# Cap the concatenated code we feed to per-module Pass 1.
+#
+# 280K chars ≈ 70K tokens. Plus our prompt template (~5K tokens) we're at
+# 75K — well within Claude Opus 4.7's 200K context window. This handles
+# merged modules (e.g. DOA absorbing APPR + SCPFIN after Pass 4.5) which
+# can easily reach 14+ files of code without losing the tail to
+# truncation.
+_MAX_MODULE_CODE_CHARS = 280_000
 
 
 def assemble_module_code(

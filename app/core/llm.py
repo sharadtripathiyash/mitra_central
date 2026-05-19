@@ -471,6 +471,14 @@ async def anthropic_chat(
     else:
         payload["temperature"] = temperature
 
+    # ── Effective timeout ──────────────────────────────────────────────────
+    # Adaptive thinking can take several minutes on big inputs (per-module
+    # Pass 1 facts extraction on a 14-file merged module + effort=xhigh
+    # easily exceeds the 180s default). Bump to 600s when thinking is on so
+    # we don't time out before the model finishes. Non-thinking calls keep
+    # the snappy 180s default.
+    effective_timeout = max(timeout, 600.0) if effort else timeout
+
     headers = {
         "x-api-key": settings.anthropic_api_key,
         "anthropic-version": _ANTHROPIC_VERSION,
@@ -480,7 +488,7 @@ async def anthropic_chat(
     last_err: Exception | None = None
     for attempt in range(max_retries):
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(timeout=effective_timeout) as client:
                 resp = await client.post(_ANTHROPIC_URL, json=payload, headers=headers)
 
             if resp.status_code == 429:

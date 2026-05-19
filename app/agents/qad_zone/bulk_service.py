@@ -83,7 +83,13 @@ _MAX_TOTAL_BYTES = 500 * 1024 * 1024    # max total uncompressed size
 # Concurrency cap for per-module doc generation. Each module triggers
 # 3 LLM calls (Pass 1 + Pass 2/Summary parallel + Pass 3) — too many in
 # flight at once will swamp rate limits.
-_MODULE_DOC_CONCURRENCY = 2
+# Sequential by default. Per-module Pass 1 (facts) + Pass 2 (doc gen) each
+# run Opus 4.7 with xhigh adaptive thinking — that's ~3-6 minutes per call
+# on a heavyweight merged module. Running two in parallel doesn't make the
+# overall batch faster (Opus is the bottleneck either way) and it makes
+# transient failures (timeouts, rate-limits) harder to reason about.
+# Sequential is the more predictable choice. Bump to 2 only after measuring.
+_MODULE_DOC_CONCURRENCY = 1
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
