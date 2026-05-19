@@ -78,6 +78,25 @@ async def groq_chat(
         return data["choices"][0]["message"]["content"]
 
 
+# How many extra tokens to add on top of the caller's `max_tokens` when
+# calling an OpenAI reasoning model (full gpt-5.x, o-series). Same class of
+# problem as Anthropic adaptive thinking: `max_completion_tokens` is a
+# COMBINED cap covering BOTH hidden chain-of-thought reasoning AND the
+# visible output. Without headroom, the model burns the whole budget
+# thinking and returns an EMPTY content body after 90-110 seconds — exactly
+# what we saw on Pass 3 review + per-module Pass 1 facts extraction.
+#
+# 60K is intentionally generous — on a fat input (e.g. a 280K-char merged
+# module sent to Pass 1) the model can chew through tens of thousands of
+# reasoning tokens before it's ready to produce JSON. We'd rather pay a
+# few extra cents of unused budget than re-hit the empty-response failure
+# mode. We pay only for tokens ACTUALLY used (reasoning + output) — the
+# cap is purely a safety ceiling against runaway cost / latency, not a
+# baseline charge. The non-reasoning mini variants (gpt-5.4-mini, etc.)
+# keep their tight budgets — they're excluded by ``_is_openai_reasoning_model``.
+_GPT5_REASONING_RESERVE = 60_000
+
+
 def _is_openai_reasoning_model(model: str) -> bool:
     """Detect models that lock ``temperature`` at 1 (reasoning models).
 
@@ -141,6 +160,14 @@ async def openai_chat(
     to before, just with retry-on-failure added (strictly more robust).
     """
     resolved_model = model or settings.openai_model
+    is_reasoning = _is_openai_reasoning_model(resolved_model)
+    # Reasoning models burn `max_completion_tokens` on hidden chain-of-thought
+    # before producing visible output. Inflate the budget so the caller's
+    # `max_tokens` represents EXPECTED OUTPUT size, not output+thinking
+    # combined. See `_GPT5_REASONING_RESERVE` for the why.
+    effective_max_tokens = (
+        max_tokens + _GPT5_REASONING_RESERVE if is_reasoning else max_tokens
+    )
     payload: dict[str, Any] = {
         "model": resolved_model,
         "messages": _build_messages(system, user_msg, history),
@@ -149,19 +176,26 @@ async def openai_chat(
         # is accepted by every current OpenAI chat model, so we use it
         # universally. (`max_tokens` still works on Groq, which is why
         # groq_chat doesn't share this code path.)
-        "max_completion_tokens": max_tokens,
+        "max_completion_tokens": effective_max_tokens,
     }
     # Reasoning models (full gpt-5.x, o-series) lock temperature at 1 and
     # reject any other value with a 400. We omit the parameter entirely so
     # they use their default. The mini/nano variants accept temperature
     # normally — pass it through.
-    if not _is_openai_reasoning_model(resolved_model):
+    if not is_reasoning:
         payload["temperature"] = temperature
     elif temperature != 1.0:
         logger.debug(
             "openai_chat: omitting temperature %s for reasoning model %s "
             "(only default 1 is supported by the API)",
             temperature, resolved_model,
+        )
+    if is_reasoning:
+        logger.debug(
+            "openai_chat: reasoning model %s — caller max_tokens=%d, "
+            "API max_completion_tokens=%d (+%d reasoning reserve)",
+            resolved_model, max_tokens, effective_max_tokens,
+            _GPT5_REASONING_RESERVE,
         )
     if response_format is not None:
         payload["response_format"] = response_format
@@ -171,10 +205,17 @@ async def openai_chat(
         "Content-Type": "application/json",
     }
 
+    # Reasoning models can think for 90-110+ seconds on a fat input (we saw
+    # this on Pass 3 + per-module Pass 1). With the +40K reserve they may now
+    # think for even longer before producing output. Bump the per-attempt
+    # timeout to 600s for them — matches what we do for Anthropic adaptive
+    # thinking. Non-reasoning calls keep the snappy 180s default.
+    effective_timeout = max(timeout, 600.0) if is_reasoning else timeout
+
     last_err: Exception | None = None
     for attempt in range(max_retries):
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(timeout=effective_timeout) as client:
                 resp = await client.post(_OPENAI_URL, json=payload, headers=headers)
 
             # ── 429: honour Retry-After, exponential backoff fallback ────────
@@ -242,15 +283,23 @@ async def openai_stream(
     model: str | None = None,
 ) -> AsyncIterator[str]:
     """Streaming OpenAI call — yields text chunks for WebSocket."""
-    payload = {
-        "model": model or settings.openai_model,
+    resolved_model = model or settings.openai_model
+    is_reasoning = _is_openai_reasoning_model(resolved_model)
+    # Same reasoning-budget logic as openai_chat — see _GPT5_REASONING_RESERVE.
+    effective_max_tokens = (
+        max_tokens + _GPT5_REASONING_RESERVE if is_reasoning else max_tokens
+    )
+    payload: dict[str, Any] = {
+        "model": resolved_model,
         "messages": _build_messages(system, user_msg, history),
-        "temperature": temperature,
         # See openai_chat() for rationale: GPT-5 family requires
         # max_completion_tokens (max_tokens is deprecated for those models).
-        "max_completion_tokens": max_tokens,
+        "max_completion_tokens": effective_max_tokens,
         "stream": True,
     }
+    # Reasoning models lock temperature at 1; omit for them.
+    if not is_reasoning:
+        payload["temperature"] = temperature
     headers = {
         "Authorization": f"Bearer {settings.openai_api_key}",
         "Content-Type": "application/json",
