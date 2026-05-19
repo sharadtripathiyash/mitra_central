@@ -38,15 +38,10 @@ def init_for_job(input_dir: Path, output_dir: Path) -> None:
     MODULES_DIR = OUTPUT_DIR / "modules"
 
 
-# ── OpenAI model settings ───────────────────────────────────────────────────
-# Re-use the same models the per-feature flow uses — gpt-4o-mini for per-file
-# classification (Pass 2, Pass A) and gpt-4o for the global-view passes
-# (Pass 1 / Pass 3 / Pass 4 / Pass 4.5).
-OPENAI_MODEL_MINI = "gpt-4o-mini"
-OPENAI_MODEL_PRO  = "gpt-4o"
-OPENAI_MODEL      = OPENAI_MODEL_MINI  # back-compat default
-
 # Concurrency caps for parallel LLM calls (Pass A and Pass 4)
+# Per-pass MODEL choices now live in ../llm_models.py — keep config.py focused
+# on tuning constants (concurrency, timeouts, code-budget caps) rather than
+# model names.
 PASS_A_CONCURRENCY = 5
 PASS_4_CONCURRENCY = 5
 
@@ -56,7 +51,14 @@ SUPPORTED_EXTS = {".p", ".i", ".cls", ".w", ".df", ".xml", ".txt"}
 
 
 # ── LLM call tuning ────────────────────────────────────────────────────────
-MAX_CODE_CHARS     = 200_000       # full file in practice — only huge files truncated
+# 350K chars ≈ 90K tokens. Fits comfortably in:
+#   - GPT-5.5             (400K context)
+#   - GPT-5.4 Mini        (400K context)
+#   - Claude Opus 4.7     (200K context, accommodates ~50K tokens of code +
+#                          prompt overhead)
+# Previously 200K — silently truncated big modules like INV (18 files).
+# With the upgraded models the truncation is no longer needed.
+MAX_CODE_CHARS     = 350_000
 INTER_CALL_DELAY   = 0.3           # seconds between Pass 2 calls (politeness)
 MAX_RETRY_ATTEMPTS = 5
 

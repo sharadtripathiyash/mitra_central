@@ -21,10 +21,8 @@ from pathlib import Path
 import httpx
 
 from . import config
-from .config import (
-    OPENAI_MODEL_MINI,
-    PASS_A_CONCURRENCY,
-)
+from .config import PASS_A_CONCURRENCY
+from ..llm_models import MODEL_PASS_A
 from .db import upsert_glossary_entry
 from .llm import openai_call
 from .standard_glossary import lookup as standard_lookup
@@ -146,7 +144,7 @@ async def derive_one(
 
     async with sem:
         result = await openai_call(client, system, user,
-                                   max_tokens=600, model=OPENAI_MODEL_MINI)
+                                   max_tokens=600, model=MODEL_PASS_A)
 
     return {
         "prefix":     prefix,

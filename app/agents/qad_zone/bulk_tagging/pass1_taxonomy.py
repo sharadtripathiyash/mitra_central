@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import httpx
 
-from .config import OPENAI_MODEL_PRO
+from ..llm_models import MODEL_PASS_1A, MODEL_PASS_1B
 from .llm import normalise_module_tag, openai_call
 from .pass_a_glossary import format_for_prompt as format_customer_glossary
 from .standard_glossary import format_for_prompt as format_standard_glossary
@@ -150,7 +150,7 @@ async def pass1a_propose_taxonomy(
         "merge sub-families. Output ONLY valid JSON."
     )
     user = build_taxonomy_prompt(families, singletons, merge_log, components, customer_glossary)
-    result = await openai_call(client, system, user, max_tokens=3000, model=OPENAI_MODEL_PRO)
+    result = await openai_call(client, system, user, max_tokens=3000, model=MODEL_PASS_1A)
 
     cleaned: list[dict] = []
     for m in result.get("modules", []):
@@ -249,7 +249,7 @@ async def pass1b_assign_files(
     )
     user = build_assignment_prompt(rel_paths, taxonomy, families, customer_glossary)
     # Big output — assignments for hundreds of files. Use max_tokens generously.
-    result = await openai_call(client, system, user, max_tokens=10000, model=OPENAI_MODEL_PRO)
+    result = await openai_call(client, system, user, max_tokens=10000, model=MODEL_PASS_1B)
 
     valid_tags = {m["module_tag"] for m in taxonomy}
     file_to_module: dict[str, str] = {}

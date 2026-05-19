@@ -29,6 +29,7 @@ from .db import (
     upsert_module,
     upsert_tagged_file,
 )
+from ..llm_models import MODEL_PASS_2_TAGGING
 from .llm import normalise_module_tag, openai_call
 from .pass_a_glossary import format_for_prompt as format_customer_glossary
 from .standard_glossary import format_for_prompt as format_standard_glossary
@@ -163,7 +164,8 @@ async def tag_one_file(
     user = build_per_file_prompt(
         rel_path, code, suggested_module, existing_modules, customer_glossary
     )
-    return await openai_call(client, system, user, max_tokens=600)
+    return await openai_call(client, system, user,
+                             max_tokens=600, model=MODEL_PASS_2_TAGGING)
 
 
 async def run_pass2(

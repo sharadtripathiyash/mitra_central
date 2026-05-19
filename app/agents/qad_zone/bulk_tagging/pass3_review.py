@@ -13,7 +13,8 @@ import sqlite3
 
 import httpx
 
-from .config import OPENAI_MODEL_PRO, utc_now
+from ..llm_models import MODEL_PASS_3
+from .config import utc_now
 from .db import (
     cleanup_orphan_modules,
     fetch_all_tagged_with_module_desc,
@@ -140,7 +141,7 @@ async def review_tags(client: httpx.AsyncClient, conn: sqlite3.Connection) -> li
     )
     user = build_review_prompt(rows, modules, customer_glossary)
     result = await openai_call(
-        client, system, user, max_tokens=6000, model=OPENAI_MODEL_PRO,
+        client, system, user, max_tokens=6000, model=MODEL_PASS_3,
     )
     return result.get("corrections", []) or []
 

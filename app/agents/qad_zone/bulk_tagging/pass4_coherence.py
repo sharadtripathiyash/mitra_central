@@ -19,10 +19,8 @@ from pathlib import Path
 import httpx
 
 from . import config
-from .config import (
-    OPENAI_MODEL_PRO,
-    PASS_4_CONCURRENCY,
-)
+from .config import PASS_4_CONCURRENCY
+from ..llm_models import MODEL_PASS_4
 from .db import (
     cleanup_orphan_modules,
     fetch_all_tagged_with_module_desc,
@@ -169,7 +167,7 @@ async def verify_one_module(
     )
     async with sem:
         result = await openai_call(
-            client, system, user, max_tokens=2000, model=OPENAI_MODEL_PRO,
+            client, system, user, max_tokens=2000, model=MODEL_PASS_4,
         )
     return {
         "module_tag": module_tag,

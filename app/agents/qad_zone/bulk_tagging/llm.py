@@ -1,18 +1,22 @@
-"""LLM wrapper for the bulk-tagging pipeline (web-app variant).
+"""LLM wrapper for the bulk-tagging pipeline.
 
-In doc-gener-bulk this module did its own httpx POST + JSON mode + 429 retry.
-In the web app we reuse ``app.core.llm.openai_chat`` so there's a single LLM
-client, single retry policy, single env-var binding.
+The standalone doc-gener-bulk tool built its own httpx client. In the web app
+we route through ``app.core.llm.chat()`` — a single dispatcher that can call
+EITHER OpenAI or Anthropic based on the model_spec string (e.g.
+``"openai:gpt-5.4-mini"`` or ``"anthropic:claude-opus-4-7:thinking=8000"``).
 
-``openai_call`` keeps the same signature as the standalone version — accepts
-a ``client`` parameter for compatibility but ignores it (the central client
-manages its own httpx). Returns a parsed dict (callers expect JSON mode).
+Per-pass model picks live in ``app/agents/qad_zone/llm_models.py``. Callers
+import their pass's specific model constant and pass it as ``model=`` here.
+
+``openai_call`` (despite the legacy name) is provider-agnostic — keeps the
+same call signature as the standalone version so the pass modules don't have
+to change their internal API.
 """
 from __future__ import annotations
 
 import re
 
-from app.core.llm import openai_chat, parse_json_response
+from app.core.llm import chat, parse_json_response
 
 
 _MODTAG_RE = re.compile(r"[A-Z0-9_]+")
@@ -40,32 +44,32 @@ async def openai_call(
     user: str,
     *,
     max_tokens: int = 600,
-    model: str | None = None,
+    model: str = "openai:gpt-5.4-mini",
 ) -> dict:
-    """Compat shim — delegate to app.core.llm.openai_chat + parse_json_response.
+    """Provider-agnostic LLM call returning a parsed dict.
 
-    Matches the standalone doc-gener-bulk LLM contract exactly:
-      • temperature=0        (deterministic tagging)
-      • JSON mode ON         (response_format={"type":"json_object"}) — forces
-                              the model to commit to strict JSON. Critical
-                              for Pass 4.5 (merges) and Pass A (glossary)
-                              where the model otherwise hedges with prose.
-      • 429 + 5xx retry      (inherited from openai_chat — 5 attempts, honours
-                              Retry-After)
-      • 180s timeout         (inherited — gives big Pass 3 / Pass 4.5 calls
-                              enough room)
+    Despite the legacy name, ``model`` may be EITHER an OpenAI or Anthropic
+    spec — see ``app/core/llm.py::chat()`` for the format. Defaults to
+    ``openai:gpt-5.4-mini`` so callers that don't pass a model still work.
+
+    OpenAI calls auto-enable JSON mode. Anthropic calls auto-cache the
+    system prompt (90% cheaper on repeat-context calls). Both honour 429 /
+    5xx retry with backoff and 180s timeout (configured inside the
+    central client).
     """
-    raw = await openai_chat(
+    raw = await chat(
+        model,
         system,
         user,
         max_tokens=max_tokens,
-        model=model,
         temperature=0.0,
-        response_format={"type": "json_object"},
     )
     try:
         return parse_json_response(raw)
     except Exception:
         # Re-raise with the raw payload truncated so the orchestrator can log
         # context and continue gracefully (most callers wrap this in try/except).
-        raise RuntimeError(f"LLM did not return valid JSON. First 400 chars: {raw[:400]!r}")
+        raise RuntimeError(
+            f"LLM did not return valid JSON. Model={model!r}. "
+            f"First 400 chars: {raw[:400]!r}"
+        )

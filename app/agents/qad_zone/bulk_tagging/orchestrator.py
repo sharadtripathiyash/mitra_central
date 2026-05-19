@@ -230,7 +230,11 @@ async def run_tagging_pipeline(
         await _emit(on_status, "pass4_5",
                     f"Pass 4.5 — final merge sweep ({module_count} modules)…")
         try:
-            merged, files_moved = await run_pass4_5(None, conn)
+            # file_count drives the adaptive target band for Pass 4.5 —
+            # see llm_models.compute_target_band(). Aim for ~8-15 files/module.
+            merged, files_moved = await run_pass4_5(
+                None, conn, file_count=len(candidates),
+            )
             if merged:
                 logger.info("Pass 4.5: %d modules merged, %d files retagged",
                             merged, files_moved)

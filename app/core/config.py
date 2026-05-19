@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     openai_embed_model: str = "text-embedding-3-large"
 
+    # LLM — Anthropic (long-form technical writing — used for the
+    # heavy-quality passes in the QAD-Zone bulk-upload pipeline.
+    # Per-pass model picks live in app/agents/qad_zone/llm_models.py).
+    anthropic_api_key: str = ""
+
     # LLM — Groq (free fast tasks: classification, table-ID, routing)
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"

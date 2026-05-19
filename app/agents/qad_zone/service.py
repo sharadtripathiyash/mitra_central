@@ -43,7 +43,13 @@ from pathlib import Path
 from fastapi import WebSocket
 
 from app.core.config import settings
-from app.core.llm import groq_chat, openai_stream, openai_chat, openai_search, parse_json_response
+from app.core.llm import chat, groq_chat, openai_stream, openai_chat, openai_search, parse_json_response
+from app.agents.qad_zone.llm_models import (
+    MODEL_DOC_FACTS,
+    MODEL_DOC_GENERATE,
+    MODEL_DOC_BLUEPRINT,
+    MODEL_DOC_SUMMARY,
+)
 from app.core.session import append_turn, load_history, set_context, get_context
 from app.core.ws import send_done, send_error, send_frame, send_status, send_token
 from app.vector.qdrant import search_chunks
@@ -497,10 +503,12 @@ OUTPUT REQUIREMENTS (strict):
 - DO NOT output the placeholder tokens ("REPLACE_WITH_...") verbatim. Compute the values from SCORING GUIDANCE."""
 
     try:
-        raw = await openai_chat(
+        # Short structured JSON with scoring — GPT-5.5 is plenty + cheaper
+        # than Opus for this call shape.
+        raw = await chat(
+            MODEL_DOC_SUMMARY,
             summary_system, summary_prompt,
-            max_tokens=2000, model="gpt-4o", temperature=0.2,
-            response_format={"type": "json_object"},
+            max_tokens=2000, temperature=0.2,
         )
         parsed = parse_json_response(raw)
         # Coerce numeric fields defensively. If the model echoed the placeholder
@@ -801,10 +809,14 @@ CRITICAL REQUIREMENTS:
 7. The blueprint output must be at least 6,000 characters of detailed JSON — this is a deep implementation document, not a summary."""
 
     try:
+        # Migration Blueprint is TypeScript-heavy (real extension code,
+        # Business Components, API integrations). GPT-5.5 leads on
+        # Terminal-Bench coding benchmarks by 13+ points over Claude Opus,
+        # so it's the right pick for the code-generation-heavy doc.
         raw = await asyncio.wait_for(
-            openai_chat(blueprint_system, blueprint_prompt,
-                        max_tokens=16000, model="gpt-4o", temperature=0.2,
-                        response_format={"type": "json_object"}),
+            chat(MODEL_DOC_BLUEPRINT,
+                 blueprint_system, blueprint_prompt,
+                 max_tokens=16000, temperature=0.2),
             timeout=_BLUEPRINT_TIMEOUT_SECS,
         )
     except asyncio.TimeoutError:
@@ -969,13 +981,14 @@ Return ONLY valid JSON with this exact structure — populate every field you ca
 Extract ONLY what you can find in the code. Omit keys with no evidence."""
 
     logger.info("PASS1 prompt length: %d chars | code length: %d chars", len(pass1_prompt), len(code))
-    # JSON mode forces the model to commit to strict valid JSON — eliminates
-    # the markdown-fence / preamble / partial-JSON failures we saw on some
-    # modules in bulk-upload (and occasionally in per-feature flow too).
-    raw1 = await openai_chat(
+    # Per-feature flow Pass 1 — Claude Opus 4.7 with extended thinking.
+    # Opus's strongest category is deep code reading + structured extraction;
+    # the 12K thinking budget gives it room to reason before committing to
+    # the 25-field facts JSON.
+    raw1 = await chat(
+        MODEL_DOC_FACTS,
         pass1_system, pass1_prompt,
-        max_tokens=8000, model="gpt-4o",
-        response_format={"type": "json_object"},
+        max_tokens=8000,
     )
     logger.info("PASS1 raw response length: %d chars", len(raw1))
 
@@ -1290,10 +1303,10 @@ OUTPUT REQUIREMENT: The JSON must be at least 15,000 characters long. Every arra
     # call is small (~3-5s) so it virtually never blocks Pass 2 (~10-20s); we just
     # wait for the slower of the two.
     pass2_task   = asyncio.create_task(
-        openai_chat(
+        chat(
+            MODEL_DOC_GENERATE,
             pass2_system, pass2_prompt,
-            max_tokens=16000, model="gpt-4o",
-            response_format={"type": "json_object"},
+            max_tokens=16000,
         )
     )
     summary_task = asyncio.create_task(

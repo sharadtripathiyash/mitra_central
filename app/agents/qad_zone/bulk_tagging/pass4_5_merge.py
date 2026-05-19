@@ -21,7 +21,7 @@ import sqlite3
 
 import httpx
 
-from .config import OPENAI_MODEL_PRO
+from ..llm_models import MODEL_PASS_4_5, compute_target_band
 from .db import (
     cleanup_orphan_modules,
     fetch_all_tagged_with_module_desc,
@@ -40,6 +40,10 @@ def build_merge_prompt(
     by_mod: dict[str, list[dict]],
     modules: dict[str, str],
     customer_glossary: dict[str, dict],
+    target_low: int,
+    target_high: int,
+    *,
+    aggressive: bool = False,
 ) -> str:
     blocks: list[str] = []
     for tag in sorted(by_mod.keys()):
@@ -59,10 +63,31 @@ def build_merge_prompt(
 
     glossary_block = format_customer_glossary(customer_glossary)
 
+    # Tone scales: first attempt is balanced; second attempt (aggressive=True)
+    # is harder — used only when a first pass left us still above target_high.
+    if aggressive:
+        tone_clause = (
+            "AGGRESSIVE MODE — the first merge attempt did not reduce the "
+            "module count enough. Be MORE willing to merge: any pair of "
+            "modules that share a 3+ character prefix in their tag OR are "
+            "described as sub-functions of the same domain SHOULD be merged. "
+            "Single-file modules whose tag looks like a verb/action (e.g. "
+            "CRJSON = 'create JSON', APPRN = 'approval notification', "
+            "NOTIF, REPORT) MUST be merged into the business domain they "
+            "serve. Err toward merging."
+        )
+    else:
+        tone_clause = (
+            "Be evidence-driven, not timid. If two modules share a business "
+            "domain per the customer glossary or have overlapping file "
+            "prefixes pointing at the same workflow, propose the merge. "
+            "Hesitate only when the evidence genuinely contradicts a merge."
+        )
+
     return f"""You are doing a FINAL consolidation pass on a QAD customisation tagging.
-{len(by_mod)} modules currently exist. Some are over-fragmented and should
-be merged. Your job: find module pairs that are clearly the same business
-domain and propose merges.
+{len(by_mod)} modules currently exist. Target for THIS codebase: {target_low}-{target_high} modules.
+Your job: find module pairs that are clearly the same business domain and
+propose merges to reach the target band.
 
 {glossary_block}
 
@@ -126,19 +151,33 @@ CRITICAL RULES:
   - Both from_module and to_module MUST be exact tags from the CURRENT MODULES
     list above. Do NOT invent new tags.
   - from_module != to_module.
-  - Be conservative — only propose merges you are confident about. If unsure,
-    leave them separate. Aim for the codebase ending up with 15-25 modules
-    total; if it's already in that range, return {{"merges": []}}.
+  - {tone_clause}
+  - TARGET MODULE COUNT for THIS codebase: {target_low}-{target_high} modules.
+    Current count: {len(by_mod)}. If current is already inside the band you
+    may still propose merges where the evidence is strong, but it's optional.
+    If current is ABOVE the band, you MUST propose enough merges to reach the
+    band (or as close as possible while staying truthful).
   - Do not chain merges (don't have A→B and B→C in the same response). If
     you spot a chain, collapse it: emit A→C and B→C separately.
-  - Up to 20 merges in one response."""
+  - Up to 25 merges in one response."""
 
 
 async def propose_merges(
     client: httpx.AsyncClient,
     conn: sqlite3.Connection,
+    target_low: int,
+    target_high: int,
+    *,
+    aggressive: bool = False,
 ) -> list[dict]:
-    """Ask the LLM which modules should be merged. Returns the merge list."""
+    """Ask the LLM which modules should be merged. Returns the merge list.
+
+    ``target_low`` / ``target_high`` come from ``compute_target_band(file_count)``
+    in ``llm_models.py``. The prompt tells the model to aim for that band.
+    ``aggressive=True`` is used for the second iteration (when the first
+    attempt didn't reduce the count enough) — the prompt softens its
+    "evidence-driven" tone toward "err on the side of merging".
+    """
     rows = fetch_all_tagged_with_module_desc(conn)
     if not rows:
         return []
@@ -150,22 +189,27 @@ async def propose_merges(
     for r in rows:
         by_mod.setdefault(r["module_tag"], []).append(r)
 
-    # If we're already at or below the target band, skip the call entirely
-    if len(by_mod) <= 20:
-        print(f"  Already at {len(by_mod)} modules (≤ 20) — skipping merge sweep.")
+    # If we're already inside the target band, skip the call entirely.
+    # Note: this is adaptive per codebase now — not hardcoded 20.
+    if len(by_mod) <= target_high:
+        print(f"  Already at {len(by_mod)} modules (within target {target_low}-{target_high}) "
+              f"— skipping merge sweep.")
         return []
 
     system = (
         "You are doing the final consolidation pass on QAD customisation "
-        "tagging. You look at ALL current modules and propose merges only "
-        "where two modules clearly cover the same business domain. You never "
+        "tagging. You look at ALL current modules and propose merges where "
+        "two modules clearly cover the same business domain. You never "
         "merge across distinct domains (EINV ≠ INV, AP ≠ APPR). Both "
         "from_module and to_module must be exact tags from the CURRENT "
         "MODULES list. Return ONLY valid JSON."
     )
-    user = build_merge_prompt(by_mod, modules, customer_glossary)
+    user = build_merge_prompt(
+        by_mod, modules, customer_glossary,
+        target_low, target_high, aggressive=aggressive,
+    )
     result = await openai_call(
-        client, system, user, max_tokens=3000, model=OPENAI_MODEL_PRO,
+        client, system, user, max_tokens=3000, model=MODEL_PASS_4_5,
     )
     return result.get("merges", []) or []
 
@@ -235,23 +279,73 @@ def apply_merges(
 async def run_pass4_5(
     client: httpx.AsyncClient,
     conn: sqlite3.Connection,
+    file_count: int,
+    *,
+    max_iterations: int = 2,
 ) -> tuple[int, int]:
-    """Top-level entry point. Returns (modules_merged, files_moved)."""
-    try:
-        merges = await propose_merges(client, conn)
-    except Exception as exc:
-        print(f"  Pass 4.5 LLM call failed: {exc}. Keeping module list as-is.")
-        return 0, 0
+    """Top-level entry point — runs Pass 4.5 with the adaptive target band.
 
-    if not merges:
-        print("  No merges proposed.")
-        return 0, 0
+    The target band is derived from ``file_count`` via
+    ``compute_target_band()`` so it scales naturally for 50-file uploads and
+    1000-file uploads alike.
 
-    print(f"  {len(merges)} merge(s) proposed:")
-    for m in merges:
-        src = normalise_module_tag(m.get("from_module", ""))
-        dst = normalise_module_tag(m.get("to_module", ""))
-        rsn = (m.get("reason", "") or "").replace("\n", " ")[:120]
-        print(f"    {src:<10} → {dst:<10}  {rsn}")
+    If after the first attempt the module count is STILL above ``target_high``,
+    a second (more aggressive) iteration runs. Capped at ``max_iterations`` to
+    avoid infinite loops.
 
-    return apply_merges(conn, merges)
+    Returns ``(total_modules_merged, total_files_moved)`` across all iterations.
+    """
+    target_low, target_high = compute_target_band(file_count)
+    print(f"  Pass 4.5 — target band for {file_count} files: "
+          f"{target_low}-{target_high} modules")
+
+    total_merged = 0
+    total_moved = 0
+
+    for iteration in range(max_iterations):
+        # How many modules right now?
+        current_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM module_tags"
+        ).fetchone()["n"]
+
+        if current_count <= target_high:
+            print(f"  Iteration {iteration + 1}: already at {current_count} modules "
+                  f"(≤ {target_high}) — done.")
+            break
+
+        aggressive = iteration > 0  # first attempt evidence-driven; subsequent attempts harder
+        label = "aggressive" if aggressive else "evidence-driven"
+        print(f"  Iteration {iteration + 1} ({label}): {current_count} modules, "
+              f"trying to merge down to ≤ {target_high}…")
+
+        try:
+            merges = await propose_merges(
+                client, conn, target_low, target_high, aggressive=aggressive,
+            )
+        except Exception as exc:
+            print(f"    Pass 4.5 LLM call failed (iter {iteration + 1}): {exc}. "
+                  "Keeping module list as-is.")
+            break
+
+        if not merges:
+            print(f"    No merges proposed in iteration {iteration + 1}. "
+                  "Stopping — model didn't find more to merge.")
+            break
+
+        print(f"    {len(merges)} merge(s) proposed:")
+        for m in merges:
+            src = normalise_module_tag(m.get("from_module", ""))
+            dst = normalise_module_tag(m.get("to_module", ""))
+            rsn = (m.get("reason", "") or "").replace("\n", " ")[:120]
+            print(f"      {src:<10} → {dst:<10}  {rsn}")
+
+        merged, moved = apply_merges(conn, merges)
+        total_merged += merged
+        total_moved += moved
+
+        if merged == 0:
+            # LLM proposed but apply rejected all (skip-SHARED, unknown tags etc.).
+            print("    No merges actually applied. Stopping iteration loop.")
+            break
+
+    return total_merged, total_moved

@@ -33,9 +33,13 @@ import json
 import logging
 from typing import Any
 
-from app.core.llm import openai_chat, parse_json_response
+from app.core.llm import chat, parse_json_response
 from app.agents.qad_zone.doc_generator import generate_document
 from app.agents.qad_zone.blueprint_doc_generator import generate_blueprint_document
+from app.agents.qad_zone.llm_models import (
+    MODEL_DOC_FACTS,
+    MODEL_DOC_GENERATE,
+)
 # We reuse the per-feature pipeline's internal helpers so prompts stay in
 # ONE place. Re-importing avoids duplicating ~600 lines of prompt strings.
 from app.agents.qad_zone.service import (
@@ -487,16 +491,18 @@ async def generate_doc_and_blueprint_for_module(
         }
 
     # ── Step 2: Pass 1 — extract facts ──────────────────────────────────────
-    # JSON mode keeps the model from hedging with markdown fences / preamble —
-    # same fix that unblocked Pass 4.5 in the bulk-tagging pipeline. This is
-    # what makes large modules (~80% of the per-module errors we saw on the
-    # first bulk-upload run) reliably parse here.
+    # Claude Opus 4.7 with extended thinking — Opus's strongest category is
+    # deep code reading + structured extraction. The 12K thinking budget lets
+    # the model reason about the code before committing to a 25-field JSON.
+    # JSON output reliability comes from Opus's instruction-following + our
+    # explicit "Return ONLY valid JSON" prompt + parse_json_response's
+    # tolerant fence stripping.
     pass1_system, pass1_user = _build_pass1_prompt(module_tag, module_desc, code)
     try:
-        raw1 = await openai_chat(
+        raw1 = await chat(
+            MODEL_DOC_FACTS,
             pass1_system, pass1_user,
-            max_tokens=8000, model="gpt-4o", temperature=0.2,
-            response_format={"type": "json_object"},
+            max_tokens=8000, temperature=0.2,
         )
         facts = parse_json_response(raw1)
     except Exception as exc:
@@ -522,10 +528,10 @@ async def generate_doc_and_blueprint_for_module(
     # ── Step 4: Pass 2 (Word doc JSON) + Summary in parallel ────────────────
     pass2_system, pass2_user = _build_pass2_prompt(raw1, web_research, facts)
     pass2_task = asyncio.create_task(
-        openai_chat(
+        chat(
+            MODEL_DOC_GENERATE,
             pass2_system, pass2_user,
-            max_tokens=16000, model="gpt-4o", temperature=0.2,
-            response_format={"type": "json_object"},
+            max_tokens=16000, temperature=0.2,
         )
     )
     summary_task = asyncio.create_task(_generate_summary(raw1, web_research))
