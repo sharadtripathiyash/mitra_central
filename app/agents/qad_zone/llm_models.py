@@ -27,8 +27,12 @@ Each constant is a string the ``app.core.llm.chat()`` dispatcher understands:
 
     "openai:<model>"
     "anthropic:<model>"
-    "anthropic:<model>:thinking=<N>"        # enable extended thinking
-                                            # with N-token reasoning budget
+    "anthropic:<model>:effort=<level>"      # enable adaptive thinking at
+                                            # <low|medium|high|xhigh|max>
+
+Note: as of Opus 4.7 (April 2026), the old explicit ``thinking.budget_tokens``
+mechanism was removed in favour of "adaptive thinking" + an effort level. The
+model decides how much to think; ``effort`` caps the spend.
 
 See ``app/core/llm.py::chat()`` for the parser.
 """
@@ -50,8 +54,9 @@ MODEL_PASS_A = "openai:gpt-5.4-mini"
 
 # Pass 1a — Propose the module taxonomy (single LLM call)
 # Critical: this decides the 15-25 module structure for the whole codebase.
-# Extended thinking helps the model reason through merges before committing.
-MODEL_PASS_1A = "anthropic:claude-opus-4-7:thinking=8000"
+# Adaptive thinking at "high" effort helps the model reason through merges
+# before committing.
+MODEL_PASS_1A = "anthropic:claude-opus-4-7:effort=high"
 
 # Pass 1b — Assign 250 files to the locked taxonomy (single LLM call)
 # Large structured-JSON output. GPT-5.5 has 400K context + strict JSON mode
@@ -64,10 +69,10 @@ MODEL_PASS_1B = "openai:gpt-5.5"
 MODEL_PASS_2_TAGGING = "openai:gpt-5.4-mini"
 
 # Pass 3 — Global review (single LLM call seeing all 250 tagged files)
-# Pattern recognition across the whole dataset. Opus + extended thinking is
-# the right tool here — it actually thinks about cross-module patterns
-# instead of pattern-matching superficially.
-MODEL_PASS_3 = "anthropic:claude-opus-4-7:thinking=8000"
+# Pattern recognition across the whole dataset. Adaptive thinking at "high"
+# effort lets Opus actually think about cross-module patterns instead of
+# pattern-matching superficially.
+MODEL_PASS_3 = "anthropic:claude-opus-4-7:effort=high"
 
 # Pass 4 — Per-module coherence verification (~25 parallel calls)
 # Read 8 file samples per module, flag outliers. GPT-5.5 is fast + the
@@ -75,9 +80,9 @@ MODEL_PASS_3 = "anthropic:claude-opus-4-7:thinking=8000"
 MODEL_PASS_4 = "openai:gpt-5.5"
 
 # Pass 4.5 — Final merge sweep (single LLM call — most important for module count)
-# THE decisive call for over-fragmentation. Opus + extended thinking ensures
-# the model commits to merges instead of hedging.
-MODEL_PASS_4_5 = "anthropic:claude-opus-4-7:thinking=8000"
+# THE decisive call for over-fragmentation. Adaptive thinking at "high" effort
+# ensures the model commits to merges instead of hedging.
+MODEL_PASS_4_5 = "anthropic:claude-opus-4-7:effort=high"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -87,13 +92,15 @@ MODEL_PASS_4_5 = "anthropic:claude-opus-4-7:thinking=8000"
 
 # Pass 1 — Extract structured facts from concatenated module code
 # Deep code reading → 25-field JSON. Wrong facts here ripple through every
-# downstream pass. Opus + extended thinking gets the depth right.
-MODEL_DOC_FACTS = "anthropic:claude-opus-4-7:thinking=12000"
+# downstream pass. Opus + adaptive thinking at "xhigh" — Anthropic's
+# recommended effort for "legacy code migration" and "large codebase
+# reviews", which is exactly what we're doing.
+MODEL_DOC_FACTS = "anthropic:claude-opus-4-7:effort=xhigh"
 
 # Pass 2 — Generate the System Documentation JSON (the actual doc text)
 # Long-form structured technical writing — Opus's strongest category.
-# 12K thinking budget gives it room to plan section structure before writing.
-MODEL_DOC_GENERATE = "anthropic:claude-opus-4-7:thinking=12000"
+# "xhigh" effort gives the model room to plan section structure before writing.
+MODEL_DOC_GENERATE = "anthropic:claude-opus-4-7:effort=xhigh"
 
 # Pass 3 — Migration Blueprint with TypeScript code, configuration steps,
 # API integrations. The TypeScript code part is the biggest single chunk

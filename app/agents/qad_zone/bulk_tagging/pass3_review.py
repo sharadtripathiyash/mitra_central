@@ -161,7 +161,8 @@ def apply_corrections(conn: sqlite3.Connection, corrections: list[dict]) -> tupl
         fp = str(c.get("file_path", "")).strip()
         to_mod = normalise_module_tag(c.get("to_module", ""))
         from_mod = normalise_module_tag(c.get("from_module", ""))
-        if not fp or not to_mod or len(to_mod) > 10:
+        # Length cap 15 — UNCLASSIFIED (12) + similar legit tags pass through.
+        if not fp or not to_mod or len(to_mod) > 15:
             continue
         # Belt-and-braces guard against the LLM still emitting no-op confirmations
         if to_mod == from_mod:

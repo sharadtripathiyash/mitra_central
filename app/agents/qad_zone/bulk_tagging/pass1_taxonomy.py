@@ -158,7 +158,10 @@ async def pass1a_propose_taxonomy(
             continue
         tag  = normalise_module_tag(m.get("module_tag", ""))
         desc = str(m.get("module_desc", "")).strip()
-        if not tag or len(tag) > 10:
+        # Length cap 15 (not 10) so legitimate longer tags like
+        # UNCLASSIFIED (12 chars) or POSMRC-style domain codes pass through.
+        # Shorter is still preferred but we don't reject moderately long tags.
+        if not tag or len(tag) > 15:
             continue
         cleaned.append({"module_tag": tag, "module_desc": desc})
     return cleaned

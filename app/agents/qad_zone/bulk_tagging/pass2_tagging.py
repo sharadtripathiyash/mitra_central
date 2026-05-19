@@ -239,7 +239,10 @@ async def run_pass2(
         allowed = set(existing_modules.keys())
         suggested_norm = normalise_module_tag(suggested) if suggested else ""
 
-        if not candidate or len(candidate) > 10:
+        # Length cap 15 (not 10) — UNCLASSIFIED is 12 chars and legitimately
+        # used by Pass 1c as a holding bucket. Real garbage tags from the LLM
+        # are almost always either empty or way > 15 chars.
+        if not candidate or len(candidate) > 15:
             print(f"[{idx:>3}/{len(to_process)}] BAD-TAG {rel_path} "
                   f"(module_tag={raw_mod!r})")
             continue

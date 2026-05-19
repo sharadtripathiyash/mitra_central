@@ -78,6 +78,35 @@ async def groq_chat(
         return data["choices"][0]["message"]["content"]
 
 
+def _is_openai_reasoning_model(model: str) -> bool:
+    """Detect models that lock ``temperature`` at 1 (reasoning models).
+
+    The full GPT-5 family (gpt-5, gpt-5.2, gpt-5.3, gpt-5.4, gpt-5.5) and
+    the o-series (o1, o3, o4) only accept ``temperature=1`` (the default) —
+    setting any other value raises a 400 ``unsupported_value`` error.
+
+    The mini/nano variants of those (gpt-5.4-mini, etc.) are NOT reasoning
+    models; they accept arbitrary temperature.
+
+    When we detect a reasoning model we OMIT the temperature parameter
+    entirely so the model uses its default (1). This avoids the error
+    without forcing a specific value.
+    """
+    m = (model or "").lower().strip()
+    if not m:
+        return False
+    # Mini / nano variants are not reasoning — they accept temperature.
+    if "-mini" in m or "-nano" in m:
+        return False
+    # gpt-5.x (full reasoning) — including future point releases
+    if m.startswith("gpt-5"):
+        return True
+    # o-series reasoning models
+    if m.startswith("o1") or m.startswith("o3") or m.startswith("o4"):
+        return True
+    return False
+
+
 async def openai_chat(
     system: str,
     user_msg: str,
@@ -111,10 +140,10 @@ async def openai_chat(
     pass ``response_format`` / ``timeout`` / ``max_retries`` behave identically
     to before, just with retry-on-failure added (strictly more robust).
     """
+    resolved_model = model or settings.openai_model
     payload: dict[str, Any] = {
-        "model": model or settings.openai_model,
+        "model": resolved_model,
         "messages": _build_messages(system, user_msg, history),
-        "temperature": temperature,
         # GPT-5 family (gpt-5, gpt-5.x, gpt-5.x-mini, o-series) deprecated
         # `max_tokens` — they require `max_completion_tokens`. The newer name
         # is accepted by every current OpenAI chat model, so we use it
@@ -122,6 +151,18 @@ async def openai_chat(
         # groq_chat doesn't share this code path.)
         "max_completion_tokens": max_tokens,
     }
+    # Reasoning models (full gpt-5.x, o-series) lock temperature at 1 and
+    # reject any other value with a 400. We omit the parameter entirely so
+    # they use their default. The mini/nano variants accept temperature
+    # normally — pass it through.
+    if not _is_openai_reasoning_model(resolved_model):
+        payload["temperature"] = temperature
+    elif temperature != 1.0:
+        logger.debug(
+            "openai_chat: omitting temperature %s for reasoning model %s "
+            "(only default 1 is supported by the API)",
+            temperature, resolved_model,
+        )
     if response_format is not None:
         payload["response_format"] = response_format
 
@@ -323,7 +364,7 @@ async def anthropic_chat(
     temperature: float = 0.2,
     max_tokens: int = 4096,
     model: str = "claude-opus-4-7",
-    thinking_budget: int | None = None,
+    effort: str | None = None,
     cache_system: bool = True,
     timeout: float = 180.0,
     max_retries: int = 5,
@@ -332,15 +373,26 @@ async def anthropic_chat(
 
     Parameters
     ----------
-    thinking_budget
-        If set, enables extended thinking. The model spends this many tokens
-        reasoning internally before producing output (Claude 4+ feature).
-        Anthropic requires temperature=1.0 when thinking is enabled — we
-        force it for you (the temperature argument is ignored if thinking is
-        on, with a debug log so it's visible).
+    effort
+        If set, enables adaptive thinking with the given effort level.
+        Valid values for Opus 4.7: "low" | "medium" | "high" | "xhigh" | "max".
+
+        - "high"  — sensible default for our doc-gen passes
+        - "xhigh" — Anthropic's recommended setting for "API design, legacy
+                    code migration, and large codebase reviews" (matches our
+                    per-module documentation perfectly)
+        - "max"   — reserved for genuinely difficult problems
+
+        When ``effort`` is set we send ``thinking={"type": "adaptive"}`` plus
+        ``output_config={"effort": effort}``. This is the API introduced in
+        Opus 4.7 (April 2026) which replaced the old explicit
+        ``thinking.budget_tokens`` mechanism.
+
+        When ``effort`` is None, the model runs without adaptive thinking
+        (default behaviour) — used for lower-stakes calls.
     cache_system
-        If True (default), the system prompt is marked with `cache_control:
-        ephemeral`. The first call pays 1.25× the input rate to write the
+        If True (default), the system prompt is marked with ``cache_control:
+        ephemeral``. The first call pays 1.25× the input rate to write the
         cache; subsequent calls within ~5 minutes pay 0.1× — a 90% saving on
         repeated KB / glossary contexts.
 
@@ -371,17 +423,18 @@ async def anthropic_chat(
         "messages": _build_anthropic_messages(user_msg, history),
     }
 
-    if thinking_budget and thinking_budget > 0:
-        # Extended thinking adds output tokens — pad max_tokens to fit both
-        # the thinking budget and the user's requested output budget.
-        payload["max_tokens"] = max_tokens + thinking_budget
-        payload["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
-        # Anthropic requires temperature=1.0 when thinking is enabled.
+    if effort:
+        # Adaptive thinking (Opus 4.7+) — model decides how much to think
+        # based on the configured effort level. The old explicit
+        # ``budget_tokens`` parameter was removed in this generation.
+        payload["thinking"] = {"type": "adaptive"}
+        payload["output_config"] = {"effort": effort}
+        # Anthropic still requires temperature=1.0 when thinking is enabled.
         payload["temperature"] = 1.0
         if temperature != 1.0:
             logger.debug(
                 "anthropic_chat: temperature overridden to 1.0 because "
-                "thinking is enabled (was %s)", temperature,
+                "adaptive thinking is enabled (was %s)", temperature,
             )
     else:
         payload["temperature"] = temperature
@@ -475,12 +528,17 @@ async def chat(
 
     Model spec format::
 
-        "openai:gpt-5.5"                     → OpenAI GPT-5.5
-        "openai:gpt-5.4-mini"                → OpenAI GPT-5.4 Mini
-        "anthropic:claude-opus-4-7"          → Claude Opus 4.7 (no thinking)
-        "anthropic:claude-opus-4-7:thinking=8000"
-                                             → Claude Opus 4.7 with 8K-token
-                                                extended thinking budget
+        "openai:gpt-5.5"                     → OpenAI GPT-5.5 (reasoning;
+                                                temperature locked at 1)
+        "openai:gpt-5.4-mini"                → OpenAI GPT-5.4 Mini (allows
+                                                custom temperature)
+        "anthropic:claude-opus-4-7"          → Claude Opus 4.7 (no adaptive
+                                                thinking)
+        "anthropic:claude-opus-4-7:effort=high"
+                                             → Claude Opus 4.7 with adaptive
+                                                thinking at "high" effort
+        "anthropic:claude-opus-4-7:effort=xhigh"
+                                             → recommended for technical docs
         "anthropic:claude-haiku-4-5"         → Claude Haiku 4.5
 
     OpenAI calls automatically request JSON mode (response_format=json_object).
@@ -510,20 +568,22 @@ async def chat(
         )
 
     if provider == "anthropic":
-        thinking_budget: int | None = None
+        effort: str | None = None
         for opt in opts:
-            if opt.startswith("thinking="):
-                try:
-                    thinking_budget = int(opt.split("=", 1)[1])
-                except ValueError:
-                    raise ValueError(f"Invalid thinking budget in {model_spec!r}")
+            if opt.startswith("effort="):
+                effort = opt.split("=", 1)[1].strip().lower()
+                if effort not in ("low", "medium", "high", "xhigh", "max"):
+                    raise ValueError(
+                        f"Invalid effort {effort!r} in {model_spec!r}; "
+                        "must be one of low|medium|high|xhigh|max"
+                    )
         return await anthropic_chat(
             system, user_msg,
             history=history,
             temperature=temperature,
             max_tokens=max_tokens,
             model=model_name,
-            thinking_budget=thinking_budget,
+            effort=effort,
             cache_system=True,
         )
 

@@ -237,7 +237,8 @@ def apply_outlier_moves(
                 continue
             fp = str(outlier.get("file_path", "")).strip()
             to_mod = normalise_module_tag(outlier.get("to_module", ""))
-            if not fp or not to_mod or len(to_mod) > 10:
+            # Length cap 15 — UNCLASSIFIED (12) + similar legit tags pass through.
+            if not fp or not to_mod or len(to_mod) > 15:
                 continue
             # If target module doesn't exist, create stub
             upsert_module(conn, to_mod, "")
