@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 AGENT_KEY = "apex"
 CUSTOM_DOCS_COLLECTION = "qad_custom_docs"
 
+# Below this top-match score (0–1) we treat the answer as low-confidence, and the
+# Apex widget surfaces a prominent "create a ticket" button (ITSM escalation).
+LOW_CONFIDENCE_SCORE = 0.45
+
 SYSTEM_PROMPT = """You are Apex, a helpful QAD ERP assistant that answers questions based on official user guide documentation and custom module documentation.
 
 RULES:
@@ -176,6 +180,13 @@ async def handle_apex_ws(ws: WebSocket, session_id: str, user: dict) -> None:
             await send_frame(ws, "sources",  sources)
             if followups:
                 await send_frame(ws, "followup", followups)
+
+            # Confidence signal for the Apex "create a ticket" (Jira/ITSM) escalation.
+            top_score = chunks[0]["score"] if chunks else 0.0
+            norm = answer_text.lower().replace("’", "'")
+            not_found = ("don't have information" in norm) or ("do not have information" in norm)
+            answered = bool(chunks) and top_score >= LOW_CONFIDENCE_SCORE and not not_found
+            await send_frame(ws, "meta", {"answered": answered, "top_score": round(top_score, 3)})
 
             append_turn(session_id, AGENT_KEY, {"q": question, "a": answer_text})
             await send_done(ws)

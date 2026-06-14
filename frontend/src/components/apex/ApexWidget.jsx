@@ -96,8 +96,10 @@ function DomainPicker({ onConfirm }) {
 }
 
 // ── Message bubble ────────────────────────────────────────────────────────────
-function Bubble({ msg }) {
-  const isUser = msg.role === "user";
+function Bubble({ msg, onCreateTicket }) {
+  const isUser    = msg.role === "user";
+  const canTicket = !isUser && !!msg.question;
+  const lowConf   = canTicket && msg.meta && msg.meta.answered === false;
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className="rounded-2xl px-4 py-2.5 max-w-[85%] text-sm leading-relaxed"
@@ -109,6 +111,89 @@ function Bubble({ msg }) {
           className="prose prose-sm max-w-none"
           dangerouslySetInnerHTML={{ __html: msg.html || escapeHtml(msg.text || "") }}
         />
+        {canTicket && (lowConf ? (
+          <button onClick={() => onCreateTicket(msg)} className="apex-smooth"
+            style={{ marginTop: 10, width: "100%", padding: "8px 12px",
+              background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a",
+              border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+            🎫 Create a support ticket
+          </button>
+        ) : (
+          <button onClick={() => onCreateTicket(msg)} className="apex-smooth"
+            style={{ marginTop: 8, background: "none", border: "none", padding: 0,
+              color: "rgba(0,229,200,0.7)", fontSize: 11.5, cursor: "pointer", textDecoration: "underline" }}>
+            Didn't solve it? Raise a ticket
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Create-ticket modal (Jira / ITSM) ─────────────────────────────────────────
+function TicketModal({ ticket, setTicket, onSubmit }) {
+  const r = ticket.result;
+  const labelStyle = { display: "block", fontSize: 11, marginBottom: 4,
+    color: "rgba(0,229,200,0.7)", textTransform: "uppercase", letterSpacing: ".05em" };
+  const fieldStyle = { width: "100%", borderRadius: 8, padding: "8px 10px", fontSize: 13,
+    outline: "none", background: "rgba(5,15,35,0.9)", border: "1px solid rgba(0,229,200,0.18)", color: "#e8f4ff" };
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center p-4"
+      style={{ background: "rgba(3,8,20,0.82)" }}>
+      <div className="w-full rounded-2xl flex flex-col overflow-hidden"
+        style={{ background: "rgba(10,18,38,0.99)", border: "1px solid rgba(0,229,200,0.28)", maxHeight: "92%" }}>
+        <div className="px-4 py-3 flex items-center justify-between"
+          style={{ background: "rgba(0,40,55,0.55)", borderBottom: "1px solid rgba(0,229,200,0.18)" }}>
+          <span className="text-sm font-semibold" style={{ color: "#7ff3e3" }}>Create a support ticket</span>
+          <button onClick={() => setTicket(null)} className="p-1 rounded apex-smooth"
+            style={{ color: "#9fe", border: "none", background: "none", cursor: "pointer" }}>
+            <X size={15} />
+          </button>
+        </div>
+
+        {r ? (
+          <div className="p-5 space-y-3 text-sm">
+            <div style={{ color: "#46e6c4", fontWeight: 700 }}>✓ Ticket created</div>
+            <div style={{ color: "rgba(200,225,255,0.78)" }}>
+              Logged as{" "}
+              <a href={r.url} target="_blank" rel="noopener noreferrer"
+                style={{ color: "#00e5c8", fontWeight: 700, textDecoration: "underline" }}>{r.key}</a>. Our team will follow up.
+            </div>
+            <button onClick={() => setTicket(null)} className="w-full rounded-lg py-2 text-sm font-bold apex-smooth"
+              style={{ background: "linear-gradient(135deg,#00c9ae,#00e5c8)", color: "#060d1a", border: "none", cursor: "pointer" }}>
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="p-4 space-y-3 overflow-y-auto">
+            <div>
+              <label style={labelStyle}>Summary</label>
+              <input value={ticket.summary} maxLength={240}
+                onChange={(e) => setTicket((t) => ({ ...t, summary: e.target.value }))}
+                style={fieldStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Details</label>
+              <textarea value={ticket.description} rows={7}
+                onChange={(e) => setTicket((t) => ({ ...t, description: e.target.value }))}
+                style={{ ...fieldStyle, resize: "none" }} />
+            </div>
+            {ticket.error && <div style={{ fontSize: 12, color: "#ff8d8d" }}>{ticket.error}</div>}
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setTicket(null)} disabled={ticket.submitting}
+                className="flex-1 rounded-lg py-2 text-sm apex-smooth"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(200,225,255,0.7)", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer" }}>
+                Cancel
+              </button>
+              <button onClick={onSubmit} disabled={ticket.submitting || !ticket.summary.trim()}
+                className="flex-1 rounded-lg py-2 text-sm font-bold apex-smooth"
+                style={{ background: ticket.submitting ? "rgba(0,229,200,0.3)" : "linear-gradient(135deg,#00c9ae,#00e5c8)",
+                  color: "#060d1a", border: "none", cursor: ticket.submitting ? "wait" : "pointer" }}>
+                {ticket.submitting ? "Creating…" : "Create ticket"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -124,6 +209,7 @@ export function ApexWidget() {
   const [loading, setLoading]         = useState(false);
   const [streaming, setStreaming]     = useState(false);
   const [liveHtml, setLiveHtml]       = useState("");
+  const [ticket, setTicket]           = useState(null);   // ITSM dialog: {summary,description,area,submitting,result,error} | null
 
   const msgsRef  = useRef(null);
   const inputRef = useRef(null);
@@ -219,6 +305,7 @@ export function ApexWidget() {
     let acc         = "";
     let accSources  = null;
     let accFollowups = null;
+    let accMeta      = null;
     doneRef.current  = false;
 
     const ws = new WebSocket(buildWsUrl(WS_PATH));
@@ -237,13 +324,14 @@ export function ApexWidget() {
           break;
         case "sources":  accSources   = data; break;
         case "followup": accFollowups = data; break;
-        case "error":    finish(`<span class="text-red-600 text-sm">${escapeHtml(data)}</span>`); break;
-        case "done":     finish(buildFinalHtml()); break;
+        case "meta":     accMeta      = data; break;
+        case "error":    finish(`<span class="text-red-600 text-sm">${escapeHtml(data)}</span>`, false); break;
+        case "done":     finish(buildFinalHtml(), true); break;
       }
     };
 
-    ws.onerror  = () => finish('<span class="text-red-600 text-sm">Connection error.</span>');
-    ws.onclose  = () => { if (!doneRef.current) finish(buildFinalHtml()); };
+    ws.onerror  = () => finish('<span class="text-red-600 text-sm">Connection error.</span>', false);
+    ws.onclose  = () => { if (!doneRef.current) finish(buildFinalHtml(), true); };
 
     function buildFinalHtml() {
       let html = acc ? renderMarkdown(acc) : "";
@@ -252,14 +340,62 @@ export function ApexWidget() {
       return html || "(no response)";
     }
 
-    function finish(html) {
+    function finish(html, ticketOk = false) {
       if (doneRef.current) return;
       doneRef.current = true;
-      setMessages((prev) => [...prev, { role: "assistant", html }]);
+      const msg = ticketOk
+        ? { role: "assistant", html, question: q, answerText: acc, meta: accMeta, area: domainsRef.current }
+        : { role: "assistant", html };
+      setMessages((prev) => [...prev, msg]);
       setLoading(false); setStreaming(false); setLiveHtml("");
       try { ws.close(); } catch (_) {}
     }
   }, [input, loading]);
+
+  // ── Create-ticket (Jira / ITSM escalation) ───────────────────────────────────
+  function openTicket(msg) {
+    const areas    = (msg.area && msg.area.length) ? msg.area : domainsRef.current;
+    const areaStr  = (areas && areas.length) ? areas.join(", ") : "—";
+    const scorePct = (msg.meta && msg.meta.top_score != null)
+      ? Math.round(msg.meta.top_score * 100) + "%" : "—";
+    const ans = (msg.answerText || "").trim();
+    const description =
+      `Question:\n${msg.question || ""}\n\n` +
+      `Assistant reply:\n${ans || "(no answer)"}\n\n` +
+      `Top documentation match: ${scorePct}\n` +
+      `Area / module: ${areaStr}`;
+    setTicket({
+      summary: (msg.question || "").slice(0, 240),
+      description,
+      area: areas || [],
+      submitting: false,
+      result: null,
+      error: null,
+    });
+  }
+
+  async function submitTicket() {
+    if (!ticket || ticket.submitting) return;
+    const summary = (ticket.summary || "").trim();
+    if (!summary) { setTicket((t) => ({ ...t, error: "Summary is required." })); return; }
+    setTicket((t) => ({ ...t, submitting: true, error: null }));
+    try {
+      const r = await fetch("/agents/apex/ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ summary, description: ticket.description, area: ticket.area }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.ok) {
+        setTicket((t) => (t ? { ...t, submitting: false, result: data } : t));
+      } else {
+        setTicket((t) => (t ? { ...t, submitting: false, error: data.error || `Failed (HTTP ${r.status})` } : t));
+      }
+    } catch (_) {
+      setTicket((t) => (t ? { ...t, submitting: false, error: "Network error. Please try again." } : t));
+    }
+  }
 
   function handleKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -287,7 +423,7 @@ export function ApexWidget() {
 
       {/* Panel */}
       {open && (
-        <div ref={panelRef} className="w-96 h-[600px] rounded-l-2xl shadow-2xl flex flex-col overflow-hidden"
+        <div ref={panelRef} className="relative w-96 h-[600px] rounded-l-2xl shadow-2xl flex flex-col overflow-hidden"
           style={{ background: "rgba(8,15,32,0.98)", border: "1px solid rgba(0,229,200,0.2)", borderRight: "none" }}>
 
           {/* Header */}
@@ -316,7 +452,7 @@ export function ApexWidget() {
           {!needsDomain && (
             <div ref={msgsRef} className="flex-1 overflow-y-auto p-4 space-y-3"
               style={{ background: "rgba(6,13,26,0.6)" }}>
-              {messages.map((m, i) => <Bubble key={i} msg={m} />)}
+              {messages.map((m, i) => <Bubble key={i} msg={m} onCreateTicket={openTicket} />)}
 
               {/* Streaming bubble */}
               {streaming && (
@@ -381,6 +517,10 @@ export function ApexWidget() {
                 </button>
               </div>
             </div>
+          )}
+
+          {ticket && (
+            <TicketModal ticket={ticket} setTicket={setTicket} onSubmit={submitTicket} />
           )}
 
         </div>

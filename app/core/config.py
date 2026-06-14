@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     qdrant_collection_apex: str = "qad_docs"
     qdrant_collection_custom: str = "qad_custom_docs"
 
+    # Jira / ITSM (Apex "create a ticket" escalation)
+    jira_base_url: str = ""
+    jira_email: str = ""
+    jira_api_token: str = ""
+    jira_project_key: str = "KAN"
+    jira_issue_type: str = "Task"
+
 
 @lru_cache
 def get_settings() -> Settings:
